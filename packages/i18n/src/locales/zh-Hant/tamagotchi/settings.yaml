@@ -10,14 +10,14 @@ pages:
     sections:
       section:
         window-shortcuts:
-          title: Keyboard Shortcuts
+          title: 鍵盤快捷鍵
     window-shortcuts:
-      description: Modify the window shortcuts.
-      title: Window Shortcuts
+      description: 修改視窗快捷方式
+      title: 視窗快捷方式
       toggle-move:
-        label: Toggle Move
+        label: 切換移動狀態
       toggle-resize:
-        label: Toggle Resize
+        label: 調整大小
       toggle-ignore-mouse-event:
-        label: Toggle Ignore Mouse Event
-      press-keys: Press Keys...
+        label: 忽略滑鼠事件
+      press-keys: 請按下按鍵...
