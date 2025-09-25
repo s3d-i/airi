@@ -233,7 +233,8 @@ pages:
             search_voices_placeholder: 搜尋聲線...
             search_voices_results: 找到 {count} / {total} 條聲線
             unsupported_voice_warning_title: No supported voices
-            unsupported_voice_warning_content: Try a different model or provider. We are working on supporting all the voice for this model as quickly as possible. If you need it urgently, please let us know on GitHub at https://github.com/moeru-ai/airi/issues.
+            unsupported_voice_warning_content: >-
+              Try a different model or provider. We are working on supporting all the voice for this model as quickly as possible. If you need it urgently, please let us know on GitHub at https://github.com/moeru-ai/airi/issues.
             show_less: 顯示更少
             show_more: 顯示更多
             title: 選擇語音合成服務來源
@@ -459,6 +460,9 @@ pages:
       xai:
         description: X.AI
         title: xAI
+      302-ai:
+        description: 302.AI
+        title: 302.AI
       transcriptions:
         playground:
           title: 實驗平台
@@ -468,27 +472,27 @@ pages:
     title: 場景
   system:
     color-scheme:
-      description: Change the color scheme of the stage.
-      title: Color Scheme
+      description: 更改舞台的配色方案
+      title: 配色方案
     developer:
-      description: Some developer options.
-      title: Developers
+      description: 為開發者提供的選項
+      title: 開發者
     general:
-      description: Dark theme, languages, etc.
-      title: General
-    description: Customize your stage!
+      description: 深色主題、語言等選項
+      title: 通用
+    description: 自訂你的舞台外觀！
     sections:
       section:
         custom-color:
           fields:
             field:
               primary-color:
-                label: Primary color
+                label: 強調色
                 rgb-on:
-                  title: I Want It Dynamic!
-          title: Color Scheme
+                  title: RGB ON!
+          title: 配色
         developer:
-          title: Developer
+          title: 開發者
           sections:
             section:
               use-magic-keys:
@@ -498,72 +502,72 @@ pages:
           presets:
             - 
             colors:
-                - AIRI Green
-              description: The default greenish theme color, brought by AIRI to you!
-              title: Default Color
+                - AIRI 綠
+              description: 預設的綠色主題，由 AIRI 為您帶來！
+              title: 預設顏色
             - 
             colors:
-                - Taupe
-                - Beige
-                - Ash Grey
-                - Light Taupe
-                - Ivory
-                - Olive Grey
-                - Sand
-                - Warm Grey
-              description: Soft, muted tones inspired by Giorgio Morandi's paintings
-              title: Morandi Colors
+                - 灰褐色
+                - 米色
+                - 灰白色
+                - 淺灰褐色
+                - 象牙色
+                - 橄欖灰
+                - 沙色
+                - 暖灰色
+              description: 受喬治·莫蘭迪繪畫啟發的柔和、低調色調
+              title: Morandi 顏色
             - 
             colors:
-                - Sky Blue
-                - Mist
-                - Sand
-                - Moss Green
-                - Water Lily
-                - Wheat
-                - Slate Blue
-                - Sage
-              description: Impressionist palette inspired by Claude Monet's works
-              title: Monet Colors
+                - 天藍色
+                - 薄霧色
+                - 沙色
+                - 苔蘚綠
+                - 睡蓮色
+                - 小麥色
+                - 板岩藍
+                - 鼠尾草色
+              description: 受克勞德·莫內作品啟發的印象派調色盤
+              title: 莫內顏色
             - 
             colors:
-                - Tan
-                - Warm Taupe
-                - Umber
-                - Coffee
-                - Bronze
-                - Gold
-                - Mustard
-                - Amber
-              description: Traditional Japanese color palette
-              title: Japanese Colors
+                - 棕褐色
+                - 暖灰褐色
+                - 赭色
+                - 咖啡色
+                - 青銅色
+                - 金色
+                - 芥末色
+                - 琥珀色
+              description: 傳統日本色彩調色盤
+              title: 日本顏色
             - 
             colors:
-                - Nordic Blue
-                - Ice
-                - Fjord
-                - Steel
-                - Glacier
-                - Slate
-                - Cloud
-                - Stone
-              description: Scandinavian minimalist color scheme
-              title: Nordic Colors
+                - 北歐藍
+                - 冰色
+                - 峽灣色
+                - 鋼鐵色
+                - 冰川色
+                - 板岩色
+                - 雲色
+                - 石頭色
+              description: 北歐極簡主義配色方案
+              title: 北歐顏色
             - 
             colors:
-                - Rosy Dawn
-                - Chinese Red
-                - Smoky Brown
-                - Bamboo Green
-                - Dark Purple
-                - Golden Yellow
-                - Azure Blue
-                - Ochre
+                - 霞光紅
+                - 棗紅
+                - 黃櫨
+                - 竹青
+                - 烏梅紫
+                - 緗色
+                - 青冥
+                - 赭石
               description: >-
-                Traditional Chinese colors, derived from ancient textiles, porcelain and paintings
-              title: Chinese Traditional Colors
-          title: Color Scheme Presets
-    title: System
+                中國傳統色彩，源自古代紡織品、瓷器與繪畫
+              title: 中國傳統顏色
+          title: 預設
+    title: 外觀
 sections:
   section:
     general:
