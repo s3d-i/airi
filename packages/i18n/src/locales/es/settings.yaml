@@ -233,7 +233,8 @@ pages:
             search_voices_placeholder: Buscar voces...
             search_voices_results: Encontradas {count} de {total} voces
             unsupported_voice_warning_title: No supported voices
-            unsupported_voice_warning_content: Try a different model or provider. We are working on supporting all the voice for this model as quickly as possible. If you need it urgently, please let us know on GitHub at https://github.com/moeru-ai/airi/issues.
+            unsupported_voice_warning_content: >-
+              Try a different model or provider. We are working on supporting all the voice for this model as quickly as possible. If you need it urgently, please let us know on GitHub at https://github.com/moeru-ai/airi/issues.
             show_less: Mostrar menos
             show_more: Mostrar más
             title: Proveedor
@@ -459,6 +460,9 @@ pages:
       xai:
         description: x.ai
         title: xAI
+      302-ai:
+        description: 302.AI
+        title: 302.AI
       transcriptions:
         playground:
           title: Playground de Transcripción
@@ -468,27 +472,27 @@ pages:
     title: Escena
   system:
     color-scheme:
-      description: Change the color scheme of the stage.
-      title: Color Scheme
+      description: Cambiar el esquema de colores del escenario.
+      title: Esquema de Colores
     developer:
-      description: Some developer options.
-      title: Developers
+      description: Algunas opciones de desarrollador.
+      title: Desarrolladores
     general:
-      description: Dark theme, languages, etc.
+      description: Tema oscuro, idiomas, etc.
       title: General
-    description: Customize your stage!
+    description: '¡Personaliza tu escenario!'
     sections:
       section:
         custom-color:
           fields:
             field:
               primary-color:
-                label: Primary color
+                label: Color primario
                 rgb-on:
-                  title: I Want It Dynamic!
-          title: Color Scheme
+                  title: '¡Lo Quiero Dinámico!'
+          title: Esquema de Colores
         developer:
-          title: Developer
+          title: Desarrollador
           sections:
             section:
               use-magic-keys:
@@ -498,72 +502,72 @@ pages:
           presets:
             - 
             colors:
-                - AIRI Green
-              description: The default greenish theme color, brought by AIRI to you!
-              title: Default Color
+                - Verde AIRI
+              description: '¡El color de tema verdoso predeterminado, traído por AIRI para ti!'
+              title: Color Predeterminado
             - 
             colors:
                 - Taupe
                 - Beige
-                - Ash Grey
-                - Light Taupe
-                - Ivory
-                - Olive Grey
-                - Sand
-                - Warm Grey
-              description: Soft, muted tones inspired by Giorgio Morandi's paintings
-              title: Morandi Colors
+                - Gris Ceniza
+                - Taupe Claro
+                - Marfil
+                - Gris Oliva
+                - Arena
+                - Gris Cálido
+              description: Tonos suaves y apagados inspirados en las pinturas de Giorgio Morandi
+              title: Colores Morandi
             - 
             colors:
-                - Sky Blue
-                - Mist
-                - Sand
-                - Moss Green
-                - Water Lily
-                - Wheat
-                - Slate Blue
-                - Sage
-              description: Impressionist palette inspired by Claude Monet's works
-              title: Monet Colors
+                - Azul Cielo
+                - Niebla
+                - Arena
+                - Verde Musgo
+                - Nenúfar
+                - Trigo
+                - Azul Pizarra
+                - Salvia
+              description: Paleta impresionista inspirada en las obras de Claude Monet
+              title: Colores Monet
             - 
             colors:
-                - Tan
-                - Warm Taupe
+                - Bronceado
+                - Taupe Cálido
                 - Umber
-                - Coffee
-                - Bronze
-                - Gold
-                - Mustard
-                - Amber
-              description: Traditional Japanese color palette
-              title: Japanese Colors
+                - Café
+                - Bronce
+                - Oro
+                - Mostaza
+                - Ámbar
+              description: Paleta de colores japonesa tradicional
+              title: Colores Japoneses
             - 
             colors:
-                - Nordic Blue
-                - Ice
-                - Fjord
-                - Steel
-                - Glacier
-                - Slate
-                - Cloud
-                - Stone
-              description: Scandinavian minimalist color scheme
-              title: Nordic Colors
+                - Azul Nórdico
+                - Hielo
+                - Fiordo
+                - Acero
+                - Glaciar
+                - Pizarra
+                - Nube
+                - Piedra
+              description: Esquema de colores minimalista escandinavo
+              title: Colores Nórdicos
             - 
             colors:
-                - Rosy Dawn
-                - Chinese Red
-                - Smoky Brown
-                - Bamboo Green
-                - Dark Purple
-                - Golden Yellow
-                - Azure Blue
-                - Ochre
+                - Amanecer Rosado
+                - Rojo Chino
+                - Marrón Ahumado
+                - Verde Bambú
+                - Púrpura Oscuro
+                - Amarillo Dorado
+                - Azul Azure
+                - Ocre
               description: >-
-                Traditional Chinese colors, derived from ancient textiles, porcelain and paintings
-              title: Chinese Traditional Colors
-          title: Color Scheme Presets
-    title: System
+                Colores chinos tradicionales, derivados de textiles antiguos, porcelana y pinturas
+              title: Colores Tradicionales Chinos
+          title: Presets de Esquema de Colores
+    title: Apariencia
 sections:
   section:
     general:
