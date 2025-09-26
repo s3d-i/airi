@@ -19,7 +19,7 @@ prompt:
     And the last, do what ever you want!
 toaster:
   pwaUpdateReady:
-    message: New version ready, reload now?
+    message: 新しいバージョンの準備ができました、今すぐ再読み込みしますか？
     action:
-      notNow: Not now
-      ok: OK
+      notNow: 後で
+      ok: はい
