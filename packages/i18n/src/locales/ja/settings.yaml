@@ -13,18 +13,18 @@ dialogs:
     configureProvider: '{provider} の設定'
     apiKey: API キー
     apiKeyHelp: '{provider} から API キーを取得し、ここに貼り付けてください'
-    baseUrl: Base URL
+    baseUrl: ベースURL
     baseUrlHelp: API endpoint URL (use default if unsure)
     accountId: アカウントID
-    validationSuccess: Configuration validation success
-    validationFailed: Configuration validation failed
-    validationError: 'Validation error: {error}'
+    validationSuccess: 構成の検証に成功しました
+    validationFailed: 構成の検証に失敗しました
+    validationError: '検証エラー: {error}'
     skipForNow: 後で
     saveAndContinue: 保存して続行
     next: 次へ
     start: やってみましょう！
     select-model: モデルの選択
-    no-models: No available models
+    no-models: 利用可能なモデルがありません
     no-models-help: >-
       Please return to the previous step and check your API key, or check the network connection.
 language:
@@ -81,7 +81,7 @@ pages:
     delete_confirmation: Are you sure you want to delete this card?
     description: AIRIキャラクターカードプリセットを使用
     description_label: 説明
-    drop_here: Drop to upload
+    drop_here: ドロップしてアップロード
     create_card: 新しいカードを作る
     creation:
       identity: アイデンティティー
@@ -127,7 +127,7 @@ pages:
     name_asc: 名前(A-Z)
     name_desc: 名前(Z-A)
     no_cards: No cards yet. Click the button above to upload one!
-    no_results: No matching cards found
+    no_results: 一致するカードが見つかりません
     personality: 性格
     posthistoryinstructions: Post-History Instructions
     recent: 最近追加されたもの
@@ -135,15 +135,15 @@ pages:
     search: Search cards...
     sort_by: 並び替え
     speech:
-      model: Speech / Model
-      voice: Speech / Voice
+      model: 発話/モデル
+      voice: 発話/音声
     systemprompt: システムプロンプト
     title: AIRIカード
     try_different_search: Try a different search term
     upload: アップロード
     upload_desc: クリックするか、ここへファイルをドラッグしてアップロード
   memory:
-    description: Where memories got stored, and organized
+    description: 記憶が保存され整理された場所
     title: メモリー
   models:
     description: Live2D, VRM, その他。
@@ -164,24 +164,24 @@ pages:
         section:
           provider-model-selection:
             collapse: Collapse
-            custom_model_placeholder: Enter custom model name...
+            custom_model_placeholder: カスタムモデル名を入力…
             description: Select the suitable LLM provider for consciousness
-            error: Error loading models
+            error: モデルの読み込みエラー
             expand: Expand
             loading: 利用可能なモデルを読み込み中…
-            manual_model_name: Model Name
+            manual_model_name: モデル名
             manual_model_placeholder: Enter the model name to use with this provider
             no_models: 利用可能なモデルがありません
             no_models_description: No models were found for this provider
             no_search_results: 一致するモデルがありません
-            no_search_results_description: No models match '{query}'. Try a different search term.
+            no_search_results_description: '{query}に一致するモデルがありません。別の検索語を試してみてください。'
             not_supported: Model listing not supported
             not_supported_description: This provider doesn't support model listing functionality
             search_placeholder: モデルを検索...
             search_results: Found {count} of {total} models
-            show_less: Show less
-            show_more: Show more
-            subtitle: Select a model from the provider
+            show_less: 表示を減らす
+            show_more: すべて表示
+            subtitle: プロバイダーからモデルを選択
             title: モデル
       title: Consciousness
     description: Thinking, vision, speech synthesis, gaming, etc.
@@ -199,11 +199,11 @@ pages:
           provider-selection:
             description: Select the suitable speech recognition provider
     memory-long-term:
-      description: Long-term memory specific settings and management
-      title: Long-Term Memory
+      description: 長期記憶の設定と管理
+      title: 長期記憶
     memory-short-term:
-      description: Short-term memory specific settings and management
-      title: Short-Term Memory
+      description: 短期記憶の設定と管理
+      title: 短期記憶
     messaging-discord:
       description: Discord上でチャットとボイスチャットをする
       title: Discord
@@ -228,36 +228,36 @@ pages:
             no_voices_hint: You can enter a custom voice name below.
             pause: Pause
             play_sample: Play Sample
-            search_models_placeholder: Search models...
+            search_models_placeholder: モデルを検索…
             search_models_results: Found {count} of {total} models
             search_voices_placeholder: Search voices...
             search_voices_results: Found {count} of {total} voices
-            unsupported_voice_warning_title: No supported voices
+            unsupported_voice_warning_title: サポートされている音声はありません
             unsupported_voice_warning_content: >-
-              Try a different model or provider. We are working on supporting all the voice for this model as quickly as possible. If you need it urgently, please let us know on GitHub at https://github.com/moeru-ai/airi/issues.
-            show_less: Show less
-            show_more: Show more
+              別のモデルまたはプロバイダーを試してみてください。可能な限り迅速にこのモデルのすべての音声をサポートすることに取り組んでいます。 緊急で必要な場合は、GitHubへお知らせください https://github.com/moeru-ai/airi/issues。
+            show_less: 表示を減らす
+            show_more: すべて表示
             title: プロバイダー
           voice-settings:
             input-ssml:
               placeholder: Enter SSML text...
             use-ssml:
               description: Enable to input raw SSML instead of plain text
-              label: Use Custom SSML
+              label: カスタム SSML を使用
       title: Speech
     title: モジュール
     vision:
-      description: Vision
+      description: 視覚
       title: 視覚
     x:
       description: X / Twitter browsing and usage
       title: X / Twitter
     mcp-server:
       description: Connect and manage MCP server and tools
-      title: MCP Server
+      title: MCP サーバー
   providers:
     explained:
-      chat: Text generation model providers. e.g. OpenRouter, OpenAI, Ollama.
+      chat: テキスト生成モデルプロバイダー。例えば、OpenRouter、OpenAI、Ollama。
       Speech: Speech (text-to-speech) model providers. e.g. ElevenLabs, Azure Speech.
       Transcription: >-
         Transcription (speech-to-text) model providers. e.g. Whisper.cpp, OpenAI, Azure Speech
@@ -269,25 +269,25 @@ pages:
       fields:
         field:
           api-key:
-            label: API Key Input
+            label: APIキーを入力
       section:
         advanced:
           fields:
             field:
               headers:
-                description: Add custom HTTP headers
+                description: カスタムHTTPヘッダーを追加
                 key:
-                  placeholder: Key
+                  placeholder: キー
                 label: HTTP Headers
                 value:
                   placeholder: Value
-          title: Advanced
+          title: 高度な設定
         basic:
           description: Essential settings
           title: Basic
         voice:
           title: Voice Settings
-    description: LLMs, speech providers, etc.
+    description: LLM、音声プロバイダーなど。
     provider:
       app-local-audio-transcription:
         title: App (Local)
@@ -337,14 +337,14 @@ pages:
         fields:
           field:
             pitch:
-              description: Tune the pitch of synthesized speech (e.g., sharper or coarser)
-              label: Pitch
+              description: 合成音声のピッチを調整します（例：シャープまたは粗い音声）
+              label: 音の高さ
             speed:
-              description: Adjust the speed of speech
-              label: Speed
+              description: 音声の速度を調整する
+              label: 速度
             volume:
-              description: Adjust the volume of speech
-              label: Volume
+              description: 音声の音量を調整する
+              label: 音量
       deepseek:
         description: deepseek.com
         title: DeepSeek
@@ -473,7 +473,7 @@ pages:
   system:
     color-scheme:
       description: ステージの配色を変更します。
-      title: Color Scheme
+      title: 配色パターン
     developer:
       description: 開発者向けオプション。
       title: 開発者
@@ -490,7 +490,7 @@ pages:
                 label: Primary color
                 rgb-on:
                   title: I Want It Dynamic!
-          title: Color Scheme
+          title: 配色パターン
         developer:
           title: Developer
           sections:
@@ -566,7 +566,7 @@ pages:
               description: >-
                 Traditional Chinese colors, derived from ancient textiles, porcelain and paintings
               title: Chinese Traditional Colors
-          title: Color Scheme Presets
+          title: 配色のプリセット
     title: System
 sections:
   section:
