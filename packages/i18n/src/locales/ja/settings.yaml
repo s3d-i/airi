@@ -28,9 +28,9 @@ dialogs:
     no-models-help: >-
       Please return to the previous step and check your API key, or check the network connection.
 language:
-  title: Language
+  title: 言語
   description: >
-    Change the language of the AIRI interface. This will not affect the language of the character's responses.
+    AIRIインターフェースの言語を変更します。これはキャラクターの応答の言語には影響しません。
 live2d:
   change-model:
     from-file: Load from File
@@ -147,7 +147,7 @@ pages:
     title: Memory
   models:
     description: Live2D, VRM, etc.
-    title: Models
+    title: モデル
     sections:
       section:
         live2d:
@@ -478,8 +478,8 @@ pages:
       description: Some developer options.
       title: Developers
     general:
-      description: Dark theme, languages, etc.
-      title: General
+      description: ダークテーマ、言語、その他。
+      title: 一般
     description: Customize your stage!
     sections:
       section:
@@ -575,7 +575,7 @@ sections:
 theme:
   title: Theme
   description: |
-    Switch the base theme of AIRI, Light mode or Dark mode.
+    AIRIのベーステーマをライトモードまたはダークモードに切り替えます。
 title: Settings
 voices: Voice
 vrm:
