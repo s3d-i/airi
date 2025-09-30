@@ -1,3 +1,5 @@
+common:
+  save: 儲存
 animations:
   stage-transitions:
     title: 是否開啟舞台動畫
@@ -158,6 +160,49 @@ pages:
           description: Configure 3D VRM models and settings
         scene: 場景
   modules:
+    beat_sync:
+      description: Vibe with beats from the audio source
+      title: Beat Sync
+      sections:
+        audio_source:
+          actions:
+            start_screen_capture: Start screen capture
+            stop: Stop
+          description: Select an audio source to detect beats from.
+          title: Audio source
+        beat_visualizer:
+          title: Beat visualizer
+        parameters:
+          advanced_parameters: Advanced Parameters
+          description: Tweak the beat detection parameters.
+          title: Parameters
+          parameters:
+            adaptive_threshold:
+              description: Whether to apply adaptive thresholds based on signal variance over time.
+              label: Adaptive threshold
+            buffer_duration:
+              description: Duration of the internal analysis buffer.
+              label: Buffer duration
+            envelope_filter_frequency:
+              description: Frequency for the envelope filter applied to smooth energy changes.
+              label: Envelope filter frequency
+            highpass_filter_frequency:
+              description: Frequency for the highpass filter applied to reduce low frequencies like sub-bass noises.
+              label: Highpass filter frequency
+            lowpass_filter_frequency:
+              description: Frequency for the lowpass filter applied to reduce high frequencies like vocals.
+              label: Lowpass filter frequency
+            min_beat_interval:
+              description: Maximum BPM or minimum interval between detected beats.
+              label: Max BPM / Min beat interval
+            sensitivity:
+              label: Sensitivity
+            spectral_flux:
+              description: Whether to enable spectral flux-based onset detection.
+              label: Spectral flux
+            warmup:
+              description: Whether to warm up before detecting beats for better accuracy.
+              label: Warmup
     consciousness:
       description: 人格設定、使用的模型等設定
       sections:
@@ -188,9 +233,31 @@ pages:
     gaming-factorio:
       description: 一起玩 Factorio！
       title: 異星工廠 Factorio
+      enable: 啟用異星工廠集成
+      enable-description: 允許 AIRI 與異星工廠遊戲互動
+      server-address: 伺服器地址
+      server-address-description: 異星工廠伺服器的 IP 地址或主機名稱
+      server-address-placeholder: 輸入伺服器地址（例如：localhost 或 192.168.1.100）
+      server-port: 伺服器端口
+      server-port-description: 異星工廠伺服器的端口號（預設 34197）
+      username: 使用者名稱
+      username-description: 您在異星工廠伺服器中的使用者名稱
+      username-placeholder: 輸入您的異星工廠使用者名稱
+      configured: 異星工廠已正確設定！
     gaming-minecraft:
       description: 一起玩 Minecraft！
       title: 我的世界 Minecraft
+      enable: 啟用我的世界集成
+      enable-description: 允許 AIRI 與我的世界遊戲互動
+      server-address: 伺服器地址
+      server-address-description: 我的世界伺服器的 IP 地址或主機名稱
+      server-address-placeholder: 輸入伺服器地址（例如：localhost 或 play.example.com）
+      server-port: 伺服器端口
+      server-port-description: 我的世界伺服器的端口號（預設 25565）
+      username: 使用者名稱
+      username-description: 您在我的世界伺服器中的使用者名稱
+      username-placeholder: 輸入您的我的世界使用者名稱
+      configured: 我的世界已正確設定！
     hearing:
       description: 語音辨識
       title: 聽覺
@@ -207,6 +274,12 @@ pages:
     messaging-discord:
       description: Discord 訊息與語音聊天
       title: Discord
+      enable: 啟用 Discord 集成
+      enable-description: 允許 AIRI 透過 Discord 進行互動
+      token: 機器人權杖
+      token-description: 您的 Discord 機器人权杖
+      token-placeholder: 輸入您的 Discord 機器人权杖
+      configured: Discord 已正確設定！
     speech:
       description: 語音合成
       sections:
@@ -252,6 +325,21 @@ pages:
     x:
       description: X / Twitter 的瀏覽與使用
       title: X / Twitter
+      enable: 啟用 X / Twitter 集成
+      enable-description: 允許 AIRI 與 X / Twitter 互動
+      api-key: API 金鑰
+      api-key-description: 您的 X / Twitter API 金鑰
+      api-key-placeholder: 輸入您的 X / Twitter API 金鑰
+      api-secret: API 金鑰密文
+      api-secret-description: 您的 X / Twitter API 金鑰密文
+      api-secret-placeholder: 輸入您的 X / Twitter API 金鑰密文
+      access-token: 存取權杖
+      access-token-description: 您的 X / Twitter 存取權杖
+      access-token-placeholder: 輸入您的 X / Twitter 存取權杖
+      access-token-secret: 存取權杖密文
+      access-token-secret-description: 您的 X / Twitter 存取權杖密文
+      access-token-secret-placeholder: 輸入您的 X / Twitter 存取權杖密文
+      configured: X / Twitter 已正確設定！
     mcp-server:
       description: 連線與管理 MCP 伺服器及工具
       title: MCP 伺服器
