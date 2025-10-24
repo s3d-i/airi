@@ -1,0 +1,46 @@
+{
+  "name": "@proj-airi/sherpa-onnx-esm",
+  "type": "module",
+  "private": true,
+  "description": "Sherpa ONNX ESM",
+  "author": {
+    "name": "Moeru AI Project AIRI Team",
+    "email": "airi@moeru.ai",
+    "url": "https://github.com/moeru-ai"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/moeru-ai/airi.git",
+    "directory": "packages/sherpa-onnx-esm"
+  },
+  "exports": {
+    ".": {
+      "type": "./dist/index.d.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "postinstall": "pnpm run build",
+    "play:dev": "vite",
+    "play:build": "vite build",
+    "play:preview": "vite preview",
+    "mv": "tsx scripts/mv.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm run mv && rolldown -c rolldown.config.ts"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.8",
+    "@unocss/reset": "^66.5.3",
+    "rolldown": "1.0.0-beta.44",
+    "rollup": "^4.52.4",
+    "sherpa-onnx": "^1.12.15",
+    "unplugin-vue": "^7.0.2",
+    "unplugin-vue-router": "^0.15.0",
+    "vite": "catalog:rolldown-vite",
+    "vite-plugin-vue-devtools": "^8.0.2",
+    "vue": "^3.5.22",
+    "vue-router": "^4.5.1",
+    "vue-tsc": "^3.1.1"
+  }
+}

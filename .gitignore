@@ -72,6 +72,8 @@ components.d.ts
 **/public/assets/live2d/models/*
 **/public/assets/vrm/models/*
 
+**/packages/sherpa-onnx-esm/src/sherpa-onnx/*
+
 # Serving fonts locally
 **/public/assets/fonts/
 

@@ -22,6 +22,7 @@ export default defineConfig({
     'apps/stage-tamagotchi/src-tauri/**',
     'apps/stage-tamagotchi-electron/out/**',
     'apps/stage-tamagotchi-electron/src/renderer/bindings/**',
+    'packages/sherpa-onnx-esm/src/sherpa-onnx/**',
     'crates/**',
     '**/drizzle/**',
     '**/.astro/**',
