@@ -82,6 +82,7 @@ onTokenLiteral(async () => {
                 <MarkdownRenderer
                   v-else
                   :content="slice.text"
+                  text="base <sm:xs"
                 />
               </div>
             </div>
@@ -129,6 +130,7 @@ onTokenLiteral(async () => {
               <MarkdownRenderer
                 v-else
                 :content="slice.text"
+                text="base <sm:xs"
               />
             </div>
           </div>
