@@ -5,11 +5,18 @@ import type { Processor } from 'unified'
 import rehypeShiki from '@shikijs/rehype'
 import rehypeKatex from 'rehype-katex'
 import RehypeStringify from 'rehype-stringify'
+import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import RemarkParse from 'remark-parse'
 import RemarkRehype from 'remark-rehype'
 
 import { unified } from 'unified'
+
+import {
+  defaultCopyDefinitions,
+  rehypeCopyEnhancer,
+  remarkCopyCollector,
+} from './markdownCopyConfig'
 
 // Define a specific, compatible type for our processor to ensure type safety.
 type MarkdownProcessor = Processor<any, any, any, any, string>
@@ -40,10 +47,13 @@ async function createProcessor(langs: BundledLanguage[]): Promise<MarkdownProces
 
   return unified()
     .use(RemarkParse)
+    .use(remarkGfm)
     .use(remarkMath)
+    .use(remarkCopyCollector, { definitions: defaultCopyDefinitions })
     .use(RemarkRehype)
-    .use(rehypeKatex)
+    .use(rehypeKatex, { output: 'mathml' })
     .use(rehypeShiki, options)
+    .use(rehypeCopyEnhancer, { definitions: defaultCopyDefinitions })
     .use(RehypeStringify)
 }
 
@@ -62,9 +72,12 @@ function getProcessor(langs: BundledLanguage[]): Promise<MarkdownProcessor> {
 export function useMarkdown() {
   const fallbackProcessor = unified()
     .use(RemarkParse)
+    .use(remarkGfm)
     .use(remarkMath)
+    .use(remarkCopyCollector, { definitions: defaultCopyDefinitions })
     .use(RemarkRehype)
-    .use(rehypeKatex)
+    .use(rehypeKatex, { output: 'mathml' })
+    .use(rehypeCopyEnhancer, { definitions: defaultCopyDefinitions })
     .use(RehypeStringify)
 
   return {
