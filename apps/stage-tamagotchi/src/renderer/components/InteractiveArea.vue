@@ -172,7 +172,7 @@ onAfterMessageComposed(async () => {
       :placeholder="t('stage.message')"
       border="solid 2 primary-100 dark:primary-600/30"
       text="primary-400 hover:primary-600 dark:primary-200 dark:hover:primary-50 placeholder:primary-400 placeholder:hover:primary-600 placeholder:dark:primary-300/70 placeholder:dark:hover:primary-100"
-      bg="primary-50 dark:primary-950/80" max-h="[10lh]" min-h="[1lh]"
+      bg="primary-50 dark:primary-100" max-h="[10lh]" min-h="[1lh]"
       w-full shrink-0 resize-none overflow-y-scroll rounded-xl p-2 font-medium outline-none
       transition="all duration-250 ease-in-out placeholder:all placeholder:duration-250 placeholder:ease-in-out"
       @compositionstart="isComposing = true"
