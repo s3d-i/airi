@@ -2,10 +2,11 @@
 import { useDisplayModelsStore } from '@proj-airi/stage-ui/stores/display-models'
 import { useOnboardingStore } from '@proj-airi/stage-ui/stores/onboarding'
 import { useSettings } from '@proj-airi/stage-ui/stores/settings'
+import { StageTransitionGroup } from '@proj-airi/ui-transitions'
 import { defineInvoke, defineInvokeHandler } from '@unbird/eventa'
 import { useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { RouterView, useRouter } from 'vue-router'
 
@@ -15,14 +16,48 @@ import { useElectronEventaContext } from './composables/electron-vueuse'
 const i18n = useI18n()
 const displayModelsStore = useDisplayModelsStore()
 const settingsStore = useSettings()
-const { language, themeColorsHue, themeColorsHueDynamic } = storeToRefs(settingsStore)
+const settings = storeToRefs(settingsStore)
 const onboardingStore = useOnboardingStore()
 const router = useRouter()
 const isDark = useDark({ disableTransition: false })
 
-watch(language, () => {
-  i18n.locale.value = language.value
+const primaryColor = computed(() => {
+  return isDark.value
+    ? `color-mix(in srgb, oklch(95% var(--chromatic-chroma-900) calc(var(--chromatic-hue) + ${0})) 70%, oklch(50% 0 360))`
+    : `color-mix(in srgb, oklch(95% var(--chromatic-chroma-900) calc(var(--chromatic-hue) + ${0})) 90%, oklch(90% 0 360))`
 })
+
+const secondaryColor = computed(() => {
+  return isDark.value
+    ? `color-mix(in srgb, oklch(95% var(--chromatic-chroma-900) calc(var(--chromatic-hue) + ${180})) 70%, oklch(50% 0 360))`
+    : `color-mix(in srgb, oklch(95% var(--chromatic-chroma-900) calc(var(--chromatic-hue) + ${180})) 90%, oklch(90% 0 360))`
+})
+
+const tertiaryColor = computed(() => {
+  return isDark.value
+    ? `color-mix(in srgb, oklch(95% var(--chromatic-chroma-900) calc(var(--chromatic-hue) + ${60})) 70%, oklch(50% 0 360))`
+    : `color-mix(in srgb, oklch(95% var(--chromatic-chroma-900) calc(var(--chromatic-hue) + ${60})) 90%, oklch(90% 0 360))`
+})
+
+const colors = computed(() => {
+  return [primaryColor.value, secondaryColor.value, tertiaryColor.value, isDark.value ? '#121212' : '#FFFFFF']
+})
+
+watch(settings.language, () => {
+  i18n.locale.value = settings.language.value
+})
+
+watch(settings.themeColorsHue, () => {
+  document.documentElement.style.setProperty('--chromatic-hue', settings.themeColorsHue.value.toString())
+}, { immediate: true })
+
+watch(settings.themeColorsHueDynamic, () => {
+  document.documentElement.classList.toggle('dynamic-hue', settings.themeColorsHueDynamic.value)
+}, { immediate: true })
+
+watch(isDark, (value) => {
+  document.documentElement.dataset.colorScheme = value ? 'dark' : 'light'
+}, { immediate: true })
 
 // FIXME: store settings to file
 onMounted(async () => {
@@ -38,22 +73,20 @@ onMounted(async () => {
   // Listen for open-settings IPC message from main process
   defineInvokeHandler(context.value, electronOpenSettings, () => router.push('/settings'))
 })
-
-watch(themeColorsHue, () => {
-  document.documentElement.style.setProperty('--chromatic-hue', themeColorsHue.value.toString())
-}, { immediate: true })
-
-watch(themeColorsHueDynamic, () => {
-  document.documentElement.classList.toggle('dynamic-hue', themeColorsHueDynamic.value)
-}, { immediate: true })
-
-watch(isDark, (value) => {
-  document.documentElement.dataset.colorScheme = value ? 'dark' : 'light'
-}, { immediate: true })
 </script>
 
 <template>
-  <RouterView />
+  <StageTransitionGroup
+    :primary-color="primaryColor"
+    :secondary-color="secondaryColor"
+    :tertiary-color="tertiaryColor"
+    :colors="colors"
+    :z-index="100"
+    :disable-transitions="settings.disableTransitions"
+    :use-page-specific-transitions="settings.usePageSpecificTransitions"
+  >
+    <RouterView />
+  </StageTransitionGroup>
 </template>
 
 <style>
