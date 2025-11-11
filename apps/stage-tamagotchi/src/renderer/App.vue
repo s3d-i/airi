@@ -3,6 +3,7 @@ import { useDisplayModelsStore } from '@proj-airi/stage-ui/stores/display-models
 import { useOnboardingStore } from '@proj-airi/stage-ui/stores/onboarding'
 import { useSettings } from '@proj-airi/stage-ui/stores/settings'
 import { defineInvoke, defineInvokeHandler } from '@unbird/eventa'
+import { useDark } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -17,6 +18,7 @@ const settingsStore = useSettings()
 const { language, themeColorsHue, themeColorsHueDynamic } = storeToRefs(settingsStore)
 const onboardingStore = useOnboardingStore()
 const router = useRouter()
+const isDark = useDark({ disableTransition: false })
 
 watch(language, () => {
   i18n.locale.value = language.value
@@ -43,6 +45,10 @@ watch(themeColorsHue, () => {
 
 watch(themeColorsHueDynamic, () => {
   document.documentElement.classList.toggle('dynamic-hue', themeColorsHueDynamic.value)
+}, { immediate: true })
+
+watch(isDark, (value) => {
+  document.documentElement.dataset.colorScheme = value ? 'dark' : 'light'
 }, { immediate: true })
 </script>
 
