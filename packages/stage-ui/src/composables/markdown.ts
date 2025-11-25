@@ -42,7 +42,7 @@ async function createProcessor(langs: BundledLanguage[]): Promise<MarkdownProces
     .use(RemarkParse)
     .use(remarkMath)
     .use(RemarkRehype)
-    .use(rehypeKatex)
+    .use(rehypeKatex, { output: 'mathml' })
     .use(rehypeShiki, options)
     .use(RehypeStringify)
 }
