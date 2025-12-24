@@ -61,7 +61,7 @@ export const useChatStore = defineStore('chat', () => {
 
   const sending = ref(false)
   const streamingMessage = ref<ChatAssistantMessage>({ role: 'assistant', content: '', slices: [], tool_results: [] })
-  const sessionGeneration = ref(0)
+  const sessionGenerations = ref<Record<string, number>>({})
 
   interface SendOptions {
     model: string
@@ -74,13 +74,48 @@ export const useChatStore = defineStore('chat', () => {
   interface QueuedSend {
     sendingMessage: string
     options: SendOptions
-    resolve: () => void
-    reject: (error: unknown) => void
     generation: number
+    sessionId: string
+    cancelled?: boolean
+    deferred: {
+      resolve: () => void
+      reject: (error: unknown) => void
+    }
   }
 
-  const sendQueue = ref<QueuedSend[]>([])
-  const processingSend = ref(false)
+  const pendingQueuedSends = ref<QueuedSend[]>([])
+
+  const sendQueue = createQueue<QueuedSend>({
+    handlers: [
+      async ({ data }) => {
+        const { sendingMessage, options, generation, deferred, sessionId, cancelled } = data
+
+        if (cancelled)
+          return
+
+        if (getSessionGeneration(sessionId) !== generation) {
+          deferred.reject(new Error('Chat session was reset before send could start'))
+          return
+        }
+
+        try {
+          await performSend(sendingMessage, options, generation, sessionId)
+          deferred.resolve()
+        }
+        catch (error) {
+          deferred.reject(error)
+        }
+      },
+    ],
+  })
+
+  sendQueue.on('enqueue', (queuedSend) => {
+    pendingQueuedSends.value = [...pendingQueuedSends.value, queuedSend]
+  })
+
+  sendQueue.on('dequeue', (queuedSend) => {
+    pendingQueuedSends.value = pendingQueuedSends.value.filter(item => item !== queuedSend)
+  })
 
   // ----- Hooks (UI callbacks) -----
   const onBeforeMessageComposedHooks = ref<Array<(message: string) => Promise<void>>>([])
@@ -198,6 +233,22 @@ export const useChatStore = defineStore('chat', () => {
   const codeBlockSystemPrompt = '- For any programming code block, always specify the programming language that supported on @shikijs/rehype on the rendered markdown, eg. ```python ... ```\n'
   const mathSyntaxSystemPrompt = '- For any math equation, use LaTeX format, eg: $ x^3 $, always escape dollar sign outside math equation\n'
 
+  function ensureSessionGeneration(sessionId: string) {
+    if (sessionGenerations.value[sessionId] === undefined)
+      sessionGenerations.value = { ...sessionGenerations.value, [sessionId]: 0 }
+  }
+
+  function getSessionGeneration(sessionId: string) {
+    ensureSessionGeneration(sessionId)
+    return sessionGenerations.value[sessionId] ?? 0
+  }
+
+  function bumpSessionGeneration(sessionId: string) {
+    const nextGeneration = getSessionGeneration(sessionId) + 1
+    sessionGenerations.value = { ...sessionGenerations.value, [sessionId]: nextGeneration }
+    return nextGeneration
+  }
+
   function generateInitialMessage() {
     // TODO: compose, replace {{ user }} tag, etc
     return {
@@ -207,6 +258,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function ensureSession(sessionId: string) {
+    ensureSessionGeneration(sessionId)
     if (!sessionMessages.value[sessionId] || sessionMessages.value[sessionId].length === 0) {
       sessionMessages.value[sessionId] = [{
         ...generateInitialMessage(),
@@ -220,6 +272,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   ensureSession(activeSessionId.value)
+
+  function getSessionMessagesById(sessionId: string) {
+    ensureSession(sessionId)
+    return sessionMessages.value[sessionId]!
+  }
 
   const messages = computed<ChatEntry[]>({
     get: () => {
@@ -237,7 +294,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function cleanupMessages(sessionId = activeSessionId.value) {
-    sessionGeneration.value += 1
+    bumpSessionGeneration(sessionId)
     sessionMessages.value[sessionId] = [{
       ...generateInitialMessage(),
       context: {
@@ -246,10 +303,15 @@ export const useChatStore = defineStore('chat', () => {
         ts: Date.now(),
       },
     }]
-    // Reject and clear any pending sends so callers don't hang after cleanup
-    for (const queued of sendQueue.value)
-      queued.reject(new Error('Chat session was reset before send could start'))
-    sendQueue.value = []
+    // Reject pending sends for this session so callers don't hang after cleanup
+    for (const queued of pendingQueuedSends.value) {
+      if (queued.sessionId !== sessionId)
+        continue
+
+      queued.cancelled = true
+      queued.deferred.reject(new Error('Chat session was reset before send could start'))
+    }
+    pendingQueuedSends.value = pendingQueuedSends.value.filter(item => item.sessionId !== sessionId)
     sending.value = false
     streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
   }
@@ -260,6 +322,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function replaceSessions(sessions: Record<string, ChatEntry[]>) {
     sessionMessages.value = sessions
+    sessionGenerations.value = Object.fromEntries(Object.keys(sessions).map(sessionId => [sessionId, 0]))
     const [firstSessionId] = Object.keys(sessions)
     if (!sessionMessages.value[activeSessionId.value] && firstSessionId)
       activeSessionId.value = firstSessionId
@@ -269,6 +332,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function resetAllSessions() {
     sessionMessages.value = {}
+    sessionGenerations.value = {}
     activeSessionId.value = 'default'
     ensureSession(activeSessionId.value)
   }
@@ -351,11 +415,14 @@ export const useChatStore = defineStore('chat', () => {
     sendingMessage: string,
     options: SendOptions,
     generation: number,
+    sessionId: string,
   ) {
     if (!sendingMessage && !options.attachments?.length)
       return
 
-    const isStaleGeneration = () => sessionGeneration.value !== generation
+    ensureSession(sessionId)
+
+    const isStaleGeneration = () => getSessionGeneration(sessionId) !== generation
     const shouldAbort = () => isStaleGeneration()
     if (shouldAbort())
       return
@@ -385,8 +452,9 @@ export const useChatStore = defineStore('chat', () => {
       if (shouldAbort())
         return
 
-      const userContext: MessageContext = { sessionId: activeSessionId.value, source: 'text', ts: Date.now() }
-      messages.value.push({ role: 'user', content: finalContent, context: userContext })
+      const sessionMessagesForSend = getSessionMessagesById(sessionId)
+      const userContext: MessageContext = { sessionId, source: 'text', ts: Date.now() }
+      sessionMessagesForSend.push({ role: 'user', content: finalContent, context: userContext })
 
       publishContextMessage({
         sessionId: userContext.sessionId,
@@ -441,7 +509,7 @@ export const useChatStore = defineStore('chat', () => {
         ],
       })
 
-      const newMessages = messages.value.map((msg) => {
+      const newMessages = sessionMessagesForSend.map((msg) => {
         const { context: _context, ...withoutContext } = msg
         const rawMessage = toRaw(withoutContext)
         if (rawMessage.role === 'assistant') {
@@ -500,7 +568,7 @@ export const useChatStore = defineStore('chat', () => {
       // Add the completed message to the history only if it has content
       if (!isStaleGeneration() && streamingMessage.value.slices.length > 0) {
         const assistantContext: MessageContext = {
-          sessionId: activeSessionId.value,
+          sessionId,
           source: 'llm',
           ts: Date.now(),
         }
@@ -510,7 +578,7 @@ export const useChatStore = defineStore('chat', () => {
           context: assistantContext,
         }
 
-        messages.value.push(assistantMessage)
+        sessionMessagesForSend.push(assistantMessage)
 
         publishContextMessage({
           sessionId: assistantContext.sessionId,
@@ -552,42 +620,21 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function processSendQueue() {
-    if (processingSend.value)
-      return
-
-    const next = sendQueue.value.shift()
-    if (!next)
-      return
-
-    processingSend.value = true
-    try {
-      await performSend(next.sendingMessage, next.options, next.generation)
-      next.resolve()
-    }
-    catch (error) {
-      next.reject(error)
-    }
-    finally {
-      processingSend.value = false
-      if (sendQueue.value.length > 0)
-        void processSendQueue()
-    }
-  }
-
   async function send(
     sendingMessage: string,
     options: SendOptions,
   ) {
+    const sessionId = activeSessionId.value
+    const generation = getSessionGeneration(sessionId)
+
     return new Promise<void>((resolve, reject) => {
-      sendQueue.value.push({
+      sendQueue.enqueue({
         sendingMessage,
         options,
-        resolve,
-        reject,
-        generation: sessionGeneration.value,
+        generation,
+        sessionId,
+        deferred: { resolve, reject },
       })
-      void processSendQueue()
     })
   }
 
