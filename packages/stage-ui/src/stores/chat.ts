@@ -60,6 +60,27 @@ export const useChatStore = defineStore('chat', () => {
   const sessionMessages = useLocalStorage<Record<string, ChatEntry[]>>(CHAT_STORAGE_KEY, {})
 
   const sending = ref(false)
+  const streamingMessage = ref<ChatAssistantMessage>({ role: 'assistant', content: '', slices: [], tool_results: [] })
+  const sessionGeneration = ref(0)
+
+  interface SendOptions {
+    model: string
+    chatProvider: ChatProvider
+    providerConfig?: Record<string, unknown>
+    attachments?: { type: 'image', data: string, mimeType: string }[]
+    tools?: StreamOptions['tools']
+  }
+
+  interface QueuedSend {
+    sendingMessage: string
+    options: SendOptions
+    resolve: () => void
+    reject: (error: unknown) => void
+    generation: number
+  }
+
+  const sendQueue = ref<QueuedSend[]>([])
+  const processingSend = ref(false)
 
   // ----- Hooks (UI callbacks) -----
   const onBeforeMessageComposedHooks = ref<Array<(message: string) => Promise<void>>>([])
@@ -216,6 +237,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function cleanupMessages(sessionId = activeSessionId.value) {
+    sessionGeneration.value += 1
     sessionMessages.value[sessionId] = [{
       ...generateInitialMessage(),
       context: {
@@ -224,6 +246,12 @@ export const useChatStore = defineStore('chat', () => {
         ts: Date.now(),
       },
     }]
+    // Reject and clear any pending sends so callers don't hang after cleanup
+    for (const queued of sendQueue.value)
+      queued.reject(new Error('Chat session was reset before send could start'))
+    sendQueue.value = []
+    sending.value = false
+    streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
   }
 
   function getAllSessions() {
@@ -319,21 +347,20 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // ----- Send flow (user -> LLM -> assistant) -----
-  const streamingMessage = ref<ChatAssistantMessage>({ role: 'assistant', content: '', slices: [], tool_results: [] })
-
-  async function send(
+  async function performSend(
     sendingMessage: string,
-    options: {
-      model: string
-      chatProvider: ChatProvider
-      providerConfig?: Record<string, unknown>
-      attachments?: { type: 'image', data: string, mimeType: string }[]
-      tools?: StreamOptions['tools']
-    },
+    options: SendOptions,
+    generation: number,
   ) {
     if (!sendingMessage && !options.attachments?.length)
       return
+
+    const isStaleGeneration = () => sessionGeneration.value !== generation
+    const shouldAbort = () => isStaleGeneration()
+    if (shouldAbort())
+      return
     sending.value = true
+    streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
 
     try {
       await emitBeforeMessageComposedHooks(sendingMessage)
@@ -355,6 +382,9 @@ export const useChatStore = defineStore('chat', () => {
 
       const finalContent = contentParts.length > 1 ? contentParts : sendingMessage
 
+      if (shouldAbort())
+        return
+
       const userContext: MessageContext = { sessionId: activeSessionId.value, source: 'text', ts: Date.now() }
       messages.value.push({ role: 'user', content: finalContent, context: userContext })
 
@@ -368,6 +398,8 @@ export const useChatStore = defineStore('chat', () => {
 
       const parser = useLlmmarkerParser({
         onLiteral: async (literal) => {
+          if (shouldAbort())
+            return
           await emitTokenLiteralHooks(literal)
 
           streamingMessage.value.content += literal
@@ -385,6 +417,8 @@ export const useChatStore = defineStore('chat', () => {
           })
         },
         onSpecial: async (special) => {
+          if (shouldAbort())
+            return
           await emitTokenSpecialHooks(special)
         },
         minLiteralEmitLength: 24, // Avoid emitting literals too fast. This is a magic number and can be changed later.
@@ -393,6 +427,8 @@ export const useChatStore = defineStore('chat', () => {
       const toolCallQueue = createQueue<ChatSlices>({
         handlers: [
           async (ctx) => {
+            if (shouldAbort())
+              return
             if (ctx.data.type === 'tool-call') {
               streamingMessage.value.slices.push(ctx.data)
               return
@@ -404,8 +440,6 @@ export const useChatStore = defineStore('chat', () => {
           },
         ],
       })
-
-      streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
 
       const newMessages = messages.value.map((msg) => {
         const { context: _context, ...withoutContext } = msg
@@ -426,6 +460,9 @@ export const useChatStore = defineStore('chat', () => {
 
       let fullText = ''
       const headers = (options.providerConfig?.headers || {}) as Record<string, string>
+
+      if (shouldAbort())
+        return
 
       await stream(options.model, options.chatProvider, newMessages as Message[], {
         headers,
@@ -461,7 +498,7 @@ export const useChatStore = defineStore('chat', () => {
       await parser.end()
 
       // Add the completed message to the history only if it has content
-      if (streamingMessage.value.slices.length > 0) {
+      if (!isStaleGeneration() && streamingMessage.value.slices.length > 0) {
         const assistantContext: MessageContext = {
           sessionId: activeSessionId.value,
           source: 'llm',
@@ -513,6 +550,45 @@ export const useChatStore = defineStore('chat', () => {
     finally {
       sending.value = false
     }
+  }
+
+  async function processSendQueue() {
+    if (processingSend.value)
+      return
+
+    const next = sendQueue.value.shift()
+    if (!next)
+      return
+
+    processingSend.value = true
+    try {
+      await performSend(next.sendingMessage, next.options, next.generation)
+      next.resolve()
+    }
+    catch (error) {
+      next.reject(error)
+    }
+    finally {
+      processingSend.value = false
+      if (sendQueue.value.length > 0)
+        void processSendQueue()
+    }
+  }
+
+  async function send(
+    sendingMessage: string,
+    options: SendOptions,
+  ) {
+    return new Promise<void>((resolve, reject) => {
+      sendQueue.value.push({
+        sendingMessage,
+        options,
+        resolve,
+        reject,
+        generation: sessionGeneration.value,
+      })
+      void processSendQueue()
+    })
   }
 
   return {
