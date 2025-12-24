@@ -27,8 +27,7 @@ interface MessageContext {
   meta?: Record<string, unknown>
 }
 
-type ChatEntry = (ChatMessage | ErrorMessage) & { context?: MessageContext }
-export type { ChatEntry }
+export type ChatEntry = (ChatMessage | ErrorMessage) & { context?: MessageContext }
 
 export interface ContextPayload {
   content?: unknown
@@ -51,6 +50,8 @@ const CHAT_STORAGE_KEY = 'chat/messages/v2'
 const ACTIVE_SESSION_STORAGE_KEY = 'chat/active-session'
 export const CONTEXT_CHANNEL_NAME = 'airi-context-update'
 export const CHAT_STREAM_CHANNEL_NAME = 'airi-chat-stream'
+
+type StreamingAssistantMessage = ChatAssistantMessage & { context?: MessageContext }
 
 export const useChatStore = defineStore('chat', () => {
   const { stream, discoverToolsCompatibility } = useLLM()
@@ -319,7 +320,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // ----- Send flow (user -> LLM -> assistant) -----
-  const streamingMessage = ref<ChatAssistantMessage>({ role: 'assistant', content: '', slices: [], tool_results: [] })
+  const streamingMessage = ref<StreamingAssistantMessage>({ role: 'assistant', content: '', slices: [], tool_results: [] })
 
   async function send(
     sendingMessage: string,
@@ -405,7 +406,12 @@ export const useChatStore = defineStore('chat', () => {
         ],
       })
 
-      streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
+      const assistantContext: MessageContext = {
+        sessionId: activeSessionId.value,
+        source: 'llm',
+        ts: Date.now(),
+      }
+      streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [], context: assistantContext }
 
       const newMessages = messages.value.map((msg) => {
         const { context: _context, ...withoutContext } = msg
@@ -462,12 +468,6 @@ export const useChatStore = defineStore('chat', () => {
 
       // Add the completed message to the history only if it has content
       if (streamingMessage.value.slices.length > 0) {
-        const assistantContext: MessageContext = {
-          sessionId: activeSessionId.value,
-          source: 'llm',
-          ts: Date.now(),
-        }
-
         const assistantMessage: ChatEntry = {
           ...(toRaw(streamingMessage.value) as ChatAssistantMessage),
           context: assistantContext,
