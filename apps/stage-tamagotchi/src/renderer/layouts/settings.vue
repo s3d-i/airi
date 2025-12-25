@@ -120,6 +120,14 @@ const routeHeaderMetadataMap = computed(() => {
       subtitle: t('tamagotchi.settings.devtools.title'),
       title: t('tamagotchi.settings.devtools.pages.widgets-calling.title'),
     },
+    '/devtools/lag-visualizer': {
+      subtitle: t('tamagotchi.settings.devtools.title'),
+      title: 'Lag Visualizer',
+    },
+    '/devtools/markdown-stress': {
+      subtitle: t('tamagotchi.settings.devtools.title'),
+      title: 'Markdown Stress',
+    },
   }
 
   for (const metadata of allProvidersMetadata.value) {

@@ -106,6 +106,14 @@ const routeHeaderMetadataMap = computed(() => {
     '/settings': {
       title: t('settings.title'),
     },
+    '/devtools/lag-visualizer': {
+      subtitle: t('settings.title'),
+      title: 'Lag Visualizer',
+    },
+    '/devtools/markdown-stress': {
+      subtitle: t('settings.title'),
+      title: 'Markdown Stress',
+    },
   }
 
   for (const metadata of allProvidersMetadata.value) {
