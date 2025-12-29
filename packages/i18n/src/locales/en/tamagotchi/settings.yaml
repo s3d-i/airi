@@ -30,5 +30,11 @@ pages:
 devtools:
   title: Developer
   pages:
+    lag-visualizer:
+      title: Lag Visualizer
+      description: Toggle FPS/long task/memory overlay
+    markdown-stress:
+      title: Markdown Stress
+      description: Stress markdown parsing and rendering with heavy chat payloads
     widgets-calling:
       title: Widget Calling
