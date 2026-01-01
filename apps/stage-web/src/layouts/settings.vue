@@ -114,6 +114,10 @@ const routeHeaderMetadataMap = computed(() => {
       subtitle: t('settings.title'),
       title: t('settings.pages.system.sections.section.developer.sections.section.markdown-stress.title'),
     },
+    '/devtools/context-flow': {
+      subtitle: t('tamagotchi.settings.devtools.title'),
+      title: t('tamagotchi.settings.devtools.pages.context-flow.title'),
+    },
   }
 
   for (const metadata of allProvidersMetadata.value) {

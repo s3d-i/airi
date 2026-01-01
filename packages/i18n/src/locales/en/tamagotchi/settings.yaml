@@ -36,5 +36,7 @@ devtools:
     markdown-stress:
       title: Markdown Stress
       description: Stress markdown parsing and rendering with heavy chat payloads
+    context-flow:
+      title: Context Flow
     widgets-calling:
       title: Widget Calling
