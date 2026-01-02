@@ -342,6 +342,8 @@ export const useChatStore = defineStore('chat', () => {
     generation: number,
     sessionId: string,
   ) {
+    const abortError = new Error('Chat stream aborted due to session reset')
+
     if (!sendingMessage && !options.attachments?.length)
       return
 
@@ -490,6 +492,9 @@ export const useChatStore = defineStore('chat', () => {
         headers,
         tools: options.tools,
         onStreamEvent: async (event: StreamEvent) => {
+          if (shouldAbort())
+            throw abortError
+
           switch (event.type) {
             case 'tool-call':
               toolCallQueue.enqueue({
@@ -518,6 +523,9 @@ export const useChatStore = defineStore('chat', () => {
           }
         },
       })
+
+      if (shouldAbort())
+        return
 
       // Finalize the parsing of the actual message content
       await parser.end()
@@ -549,8 +557,10 @@ export const useChatStore = defineStore('chat', () => {
       streamingMessage.value = { role: 'assistant', content: '', slices: [], tool_results: [] }
     }
     catch (error) {
-      console.error('Error sending message:', error)
-      throw error
+      if (error !== abortError) {
+        console.error('Error sending message:', error)
+        throw error
+      }
     }
     finally {
       sending.value = false
