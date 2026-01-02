@@ -362,8 +362,6 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
       mockStreamCancel = runner.cancel
       try {
         await runner.run()
-        if (capturing.value && runState.value === 'running')
-          setTimeout(() => stopCapture(), 0)
       }
       finally {
         mockStreamCancel = undefined
@@ -375,21 +373,32 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
     })
 
     const runStart = performance.now()
+    const sendPromises: Promise<void>[] = []
     for (const message of targetScenario.userMessages) {
       const delay = Math.max(0, runStart + message.atMs - performance.now())
-      const timer = setTimeout(async () => {
-        try {
-          await chatStore.send(message.text, {
-            model: modelToUse,
-            chatProvider: mockProvider,
-          })
-        }
-        catch (error) {
-          console.error('[markdown-stress] Mock send failed', error)
-        }
-      }, delay)
-      inFlightTimers.push(timer)
+      const promise = new Promise<void>((resolve) => {
+        const timer = setTimeout(async () => {
+          try {
+            await chatStore.send(message.text, {
+              model: modelToUse,
+              chatProvider: mockProvider,
+            })
+          }
+          catch (error) {
+            console.error('[markdown-stress] Mock send failed', error)
+          }
+          finally {
+            resolve()
+          }
+        }, delay)
+        inFlightTimers.push(timer)
+      })
+      sendPromises.push(promise)
     }
+
+    await Promise.all(sendPromises)
+    if (capturing.value && runState.value === 'running')
+      stopCapture()
   }
 
   async function scheduleRun() {
