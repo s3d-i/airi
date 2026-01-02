@@ -350,16 +350,6 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
       },
     } as ChatProvider
 
-    pendingResponses = targetScenario.userMessages.length
-    const stopOnAssistantEnd = chatStore.onAssistantResponseEnd(async () => {
-      if (!capturing.value)
-        return
-      pendingResponses = Math.max(0, pendingResponses - 1)
-      if (pendingResponses === 0)
-        stopCapture()
-    })
-    runCleanups.push(stopOnAssistantEnd)
-
     const originalStream = llm.stream
     llm.stream = async (_model, _provider, _messages, options) => {
       const runner = createMockStream({
@@ -372,6 +362,8 @@ export const useMarkdownStressStore = defineStore('markdownStress', () => {
       mockStreamCancel = runner.cancel
       try {
         await runner.run()
+        if (capturing.value && runState.value === 'running')
+          setTimeout(() => stopCapture(), 0)
       }
       finally {
         mockStreamCancel = undefined
