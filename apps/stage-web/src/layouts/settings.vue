@@ -106,9 +106,9 @@ const routeHeaderMetadataMap = computed(() => {
     '/settings': {
       title: t('settings.title'),
     },
-    '/devtools/lag-visualizer': {
+    '/devtools/performance-visualizer': {
       subtitle: t('settings.title'),
-      title: t('settings.pages.system.sections.section.developer.sections.section.lag-visualizer.title'),
+      title: t('settings.pages.system.sections.section.developer.sections.section.performance-visualizer.title'),
     },
     '/devtools/markdown-stress': {
       subtitle: t('settings.title'),
