@@ -20,6 +20,7 @@
     "dev:pocket": "pnpm -rF @proj-airi/stage-pocket run dev:web",
     "dev:server": "pnpm -rF @proj-airi/server-runtime run dev",
     "dev:tamagotchi": "pnpm -rF @proj-airi/stage-tamagotchi run dev",
+    "dev:tamagotchi:interactive": "pnpm -rF @proj-airi/stage-tamagotchi run dev:interactive",
     "dev:apps": "pnpm -rF=\"./apps/*\" run --parallel dev",
     "dev:packages": "pnpm -rF=\"./packages/*\" --parallel run dev",
     "build": "turbo run build -F=\"./packages/*\" -F=\"./apps/*\"",
