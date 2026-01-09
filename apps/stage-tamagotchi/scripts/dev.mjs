@@ -17,12 +17,21 @@ const electronViteBin = resolve(
 const here = dirname(fileURLToPath(import.meta.url))
 const cwd = resolve(here, '..')
 const args = ['dev', ...process.argv.slice(2)]
+const isWindows = process.platform === 'win32'
+const isTty = Boolean(process.stdin?.isTTY && process.stdout?.isTTY)
+
+const childEnv = { ...process.env }
+
+// Vite's CLI uses stdin hooks in TTY mode that can leave PowerShell in a bad state on Windows.
+if (isWindows && isTty && !childEnv.CI) {
+  childEnv.CI = '1'
+}
 
 const child = spawn(process.execPath, [electronViteBin, ...args], {
   cwd,
   stdio: 'inherit',
-  env: { ...process.env },
-  detached: process.platform !== 'win32',
+  env: childEnv,
+  detached: !isWindows,
 })
 
 let shuttingDown = false
@@ -49,7 +58,7 @@ function terminateChildTree(exitCode = 0) {
 
   child.once('exit', handleChildExit)
 
-  if (process.platform === 'win32') {
+  if (isWindows) {
     const killer = spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
       stdio: 'inherit',
     })
