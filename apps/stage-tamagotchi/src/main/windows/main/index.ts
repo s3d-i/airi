@@ -35,6 +35,7 @@ import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { baseUrl, getElectronMainDirname, load, withHashRoute } from '../../libs/electron/location'
 import { createConfig } from '../../libs/electron/persistence'
 import { protectPrivilegedWindowNavigation, setWindowAlwaysOnTop, transparentWindowConfig } from '../shared'
+import { setupBaseWindowElectronInvokes } from '../shared/window'
 import { setupMainWindowElectronInvokes } from './rpc/index.electron'
 
 const appConfigSchema = object({
@@ -117,6 +118,11 @@ export async function setupMainWindow(params: {
   const dockOverlayBase = baseUrl(rendererRoot, 'dock-overlay.html')
   const preloadPath = join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs')
   const dockOverlayWindow = createDockOverlayWindow(dockOverlayBase, preloadPath)
+  const { context: dockOverlayContext } = createContext(ipcMain, dockOverlayWindow)
+
+  // Register IPC services for the overlay so renderer hooks receive mouse/bounds streams.
+  // The renderer loops of these services pause while the overlay is hidden and resume when Dock Mode shows it.
+  await setupBaseWindowElectronInvokes({ context: dockOverlayContext, window: dockOverlayWindow, serverChannel: params.serverChannel, i18n: params.i18n })
 
   const window = new BrowserWindow({
     title: 'AIRI',
@@ -228,6 +234,7 @@ export async function setupMainWindow(params: {
     i18n: params.i18n,
     onboardingWindowManager: params.onboardingWindowManager,
     ioTraceRecording: params.ioTraceRecording,
+    dockOverlayContext,
   })
 
   await load(window, withHashRoute(baseUrl(resolve(getElectronMainDirname(), '..', 'renderer')), '/', {

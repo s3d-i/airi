@@ -6,7 +6,7 @@ import { useElectronEventaContext, useElectronEventaInvoke } from '@proj-airi/el
 import { themeColorFromValue, useThemeColor } from '@proj-airi/stage-layouts/composables/theme-color'
 import { artistrySyncConfig } from '@proj-airi/stage-shared'
 import { ToasterRoot } from '@proj-airi/stage-ui/components'
-import { useInferencePreload } from '@proj-airi/stage-ui/composables'
+import { useInferencePreload, useStageThemeSync } from '@proj-airi/stage-ui/composables'
 import { usePiniaSynced } from '@proj-airi/stage-ui/libs/pinia'
 import { initializeAnalytics } from '@proj-airi/stage-ui/libs/product-signals'
 import { useAuthStore } from '@proj-airi/stage-ui/stores/auth'
@@ -75,9 +75,11 @@ import {
 } from './stores/tools'
 import { resolveInitialRendererRoutePath, resolveRendererWindowContext } from './window-context'
 
+import './styles/hue.css'
+
 const { isDark: dark } = useTheme()
 const settingsStore = useSettings()
-const { language, themeColorsHue, themeColorsHueDynamic } = storeToRefs(settingsStore)
+const { language } = storeToRefs(settingsStore)
 const router = useRouter()
 const route = useRoute()
 const context = useElectronEventaContext()
@@ -97,6 +99,9 @@ const isSettingsWindow = initialRoutePath === '/settings' || initialRoutePath.st
 const stopIOTraceRecordingBridge = initialRoutePath === '/'
   ? initializeIOTraceRecordingBridge(context.value)
   : undefined
+
+// Sync chromatic hue + dynamic hue class to documentElement for this window.
+useStageThemeSync()
 
 async function refreshPluginRuntimeTools() {
   try {
@@ -361,14 +366,6 @@ onMounted(async () => {
   await fullStageRuntime?.initialize()
 })
 
-watch(themeColorsHue, () => {
-  document.documentElement.style.setProperty('--chromatic-hue', themeColorsHue.value.toString())
-}, { immediate: true })
-
-watch(themeColorsHueDynamic, () => {
-  document.documentElement.classList.toggle('dynamic-hue', themeColorsHueDynamic.value)
-}, { immediate: true })
-
 onUnmounted(() => {
   stopIOTraceRecordingBridge?.()
   stopLeadershipListener?.()
@@ -386,23 +383,4 @@ onUnmounted(() => {
 </template>
 
 <style>
-/* We need this to properly animate the CSS variable */
-@property --chromatic-hue {
-  syntax: '<number>';
-  initial-value: 0;
-  inherits: true;
-}
-
-@keyframes hue-anim {
-  from {
-    --chromatic-hue: 0;
-  }
-  to {
-    --chromatic-hue: 360;
-  }
-}
-
-.dynamic-hue {
-  animation: hue-anim 10s linear infinite;
-}
 </style>

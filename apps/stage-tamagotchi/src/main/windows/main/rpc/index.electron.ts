@@ -15,9 +15,12 @@ import type { WidgetsWindowManager } from '../../widgets'
 
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
+import { tryCatch } from '@moeru/std'
 import { ipcMain } from 'electron'
 
 import {
+  dockOverlaySyncTheme,
+  dockOverlayThemeUpdated,
   electronCenterMainWindow,
   electronChatButtonStateChanged,
   electronGetChatButtonState,
@@ -51,6 +54,7 @@ export async function setupMainWindowElectronInvokes(params: {
   i18n: I18n
   onboardingWindowManager: OnboardingWindowManager
   ioTraceRecording: IOTraceRecordingService
+  dockOverlayContext?: ReturnType<typeof createContext>['context']
 }) {
   // TODO: once we refactored eventa to support window-namespaced contexts,
   // we can remove the setMaxListeners call below since eventa will be able to dispatch and
@@ -78,4 +82,9 @@ export async function setupMainWindowElectronInvokes(params: {
   const stopChatButtonState = params.chatWindow.onButtonStateChange(state => context.emit(electronChatButtonStateChanged, state))
   params.window.once('closed', stopChatButtonState)
   defineInvokeHandler(context, noticeWindowEventa.openWindow, payload => params.noticeWindow.open(payload))
+
+  // One-shot theme sync for Dock overlay (renderer -> main -> overlay)
+  defineInvokeHandler(context, dockOverlaySyncTheme, (payload) => {
+    tryCatch(() => params.dockOverlayContext?.emit(dockOverlayThemeUpdated, payload))
+  })
 }
