@@ -22,6 +22,7 @@ import { is } from '@electron-toolkit/utils'
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { initScreenCaptureForWindow } from '@proj-airi/electron-screen-capture/main'
+import { initWindowDockForWindow } from '@proj-airi/electron-window-dock/main'
 import { defu } from 'defu'
 import { BrowserWindow, ipcMain } from 'electron'
 import { isLinux, isMacOS } from 'std-env'
@@ -48,6 +49,41 @@ const appConfigSchema = object({
 })
 
 type AppConfig = InferOutput<typeof appConfigSchema>
+
+function createDockOverlayWindow(overlayBase: string | { url: string } | { file: string }, preloadPath: string) {
+  const overlayWindow = new BrowserWindow({
+    title: 'AIRI Dock Overlay',
+    width: 450,
+    height: 600,
+    show: false,
+    focusable: false,
+    resizable: false,
+    movable: false,
+    skipTaskbar: true,
+    icon,
+    webPreferences: {
+      preload: preloadPath,
+      sandbox: false,
+    },
+    type: 'panel',
+    ...transparentWindowConfig(),
+  })
+
+  overlayWindow.setFullScreenable(false)
+  overlayWindow.setVisibleOnAllWorkspaces(true)
+  if (isMacOS) {
+    overlayWindow.setWindowButtonVisibility(false)
+  }
+
+  protectPrivilegedWindowNavigation(overlayWindow)
+
+  // Keep the overlay hidden until Dock Mode is started.
+  load(overlayWindow, overlayBase).catch((error) => {
+    console.error('failed to load dock overlay window:', error)
+  })
+
+  return overlayWindow
+}
 
 export async function setupMainWindow(params: {
   editorWindow: EditorWindowManager
@@ -77,6 +113,10 @@ export async function setupMainWindow(params: {
   setupConfig()
 
   const mainWindowConfig = getConfig().windows?.find(w => w.title === 'AIRI' && w.tag === 'main')
+  const rendererRoot = resolve(getElectronMainDirname(), '..', 'renderer')
+  const dockOverlayBase = baseUrl(rendererRoot, 'dock-overlay.html')
+  const preloadPath = join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs')
+  const dockOverlayWindow = createDockOverlayWindow(dockOverlayBase, preloadPath)
 
   const window = new BrowserWindow({
     title: 'AIRI',
@@ -87,7 +127,7 @@ export async function setupMainWindow(params: {
     show: false,
     icon,
     webPreferences: {
-      preload: join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs'),
+      preload: preloadPath,
       sandbox: false,
     },
     // Thanks to [@HeartArmy](https://github.com/HeartArmy) for the tip implementation.
@@ -228,6 +268,13 @@ export async function setupMainWindow(params: {
   }
 
   initScreenCaptureForWindow(window)
+  initWindowDockForWindow(window, { overlayWindow: dockOverlayWindow })
+
+  window.on('closed', () => {
+    if (!dockOverlayWindow.isDestroyed()) {
+      dockOverlayWindow.destroy()
+    }
+  })
 
   return window
 }
