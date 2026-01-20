@@ -91,11 +91,11 @@ export async function setupMainWindow(params: {
   const dockOverlayBase = baseUrl(rendererRoot, 'dock-overlay.html')
   const preloadPath = join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs')
   const dockOverlayWindow = createDockOverlayWindow(dockOverlayBase, preloadPath)
+  const { context: dockOverlayContext } = createContext(ipcMain, dockOverlayWindow)
 
   // Register IPC services for the overlay so renderer hooks receive mouse/bounds streams.
   {
-    const { context } = createContext(ipcMain, dockOverlayWindow)
-    const { screenService, windowService } = setupBaseWindowElectronInvokes({ context, window: dockOverlayWindow })
+    const { screenService, windowService } = setupBaseWindowElectronInvokes({ context: dockOverlayContext, window: dockOverlayWindow })
 
     const stopOverlayStreams = () => {
       screenService.stop()
@@ -213,6 +213,7 @@ export async function setupMainWindow(params: {
     widgetsManager: params.widgetsManager,
     noticeWindow: params.noticeWindow,
     autoUpdater: params.autoUpdater,
+    dockOverlayContext,
   })
 
   /**
