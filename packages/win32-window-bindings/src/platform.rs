@@ -9,10 +9,14 @@ use windows::core::Result as WinResult;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use windows::Win32::UI::WindowsAndMessaging::{
-  EnumWindows, GetForegroundWindow, GetTopWindow, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW,
-  GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, GW_HWNDNEXT, GW_HWNDPREV, GWL_EXSTYLE,
-  WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+  EnumWindows, GetForegroundWindow, GetTopWindow, GetWindow, GetWindowLongPtrW, GetWindowRect,
+  GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
+  GWL_EXSTYLE, GW_HWNDNEXT, GW_HWNDPREV, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
+
+const HRESULT_SUCCESS: i32 = 0;
+const HRESULT_WAIT_TIMEOUT: i32 = 0x80070102u32 as i32; // WAIT_TIMEOUT
+const HRESULT_NO_MORE_ITEMS: i32 = 0x800700cbu32 as i32; // ERROR_NO_MORE_ITEMS
 
 /// Convert a Win32 API call that returns an HWND into a Result.
 /// Some HWND-returning APIs (e.g. GetWindow/GW_HWNDNEXT) legitimately return NULL
@@ -20,15 +24,27 @@ use windows::Win32::UI::WindowsAndMessaging::{
 /// as an Err whose code is 0 (ERROR_SUCCESS). Treat that specific case as a
 /// successful "no window" sentinel rather than a hard failure so dock mode
 /// can gracefully fall back to Electron when the z-order is exhausted.
-fn win_hwnd(result: WinResult<HWND>, name: &str) -> Result<HWND> {
+fn win_hwnd(
+  result: WinResult<HWND>,
+  name: &str,
+) -> Result<HWND> {
   match result {
     Ok(hwnd) => Ok(hwnd),
     // Some HWND-returning APIs occasionally bubble up spurious HRESULTs (e.g. WAIT_TIMEOUT) even
     // though the call simply reached the end of the z-order. Treat these as a graceful stop so we
     // can fall back to alternate enumeration without surfacing noisy warnings upstream.
     Err(err)
-      if matches!(err.code().0, 0 | 0x80070102 | 0x800700cb) => Ok(HWND::default()),
-    Err(err) => Err(Error::new(Status::GenericFailure, format!("{name} failed: {err}"))),
+      if matches!(
+        err.code().0,
+        HRESULT_SUCCESS | HRESULT_WAIT_TIMEOUT | HRESULT_NO_MORE_ITEMS
+      ) =>
+    {
+      Ok(HWND::default())
+    },
+    Err(err) => Err(Error::new(
+      Status::GenericFailure,
+      format!("{name} failed: {err}"),
+    )),
   }
 }
 
@@ -36,7 +52,10 @@ fn win_hwnd(result: WinResult<HWND>, name: &str) -> Result<HWND> {
 /// for our purposes and avoids repeated GetWindow hops that can return transient errors on some
 /// Windows builds.
 fn enum_windows_handles() -> Result<Vec<HWND>> {
-  extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
+  extern "system" fn collect(
+    hwnd: HWND,
+    lparam: LPARAM,
+  ) -> BOOL {
     // SAFETY: lparam points to a live Vec<HWND> owned by the caller.
     let handles = unsafe { &mut *(lparam.0 as *mut Vec<HWND>) };
     handles.push(hwnd);
@@ -50,7 +69,10 @@ fn enum_windows_handles() -> Result<Vec<HWND>> {
   Ok(handles)
 }
 
-fn to_window_infos(handles: Vec<HWND>, options: &ResolvedOptions) -> Result<Vec<WindowInfo>> {
+fn to_window_infos(
+  handles: Vec<HWND>,
+  options: &ResolvedOptions,
+) -> Result<Vec<WindowInfo>> {
   let mut windows = Vec::new();
   let mut seen = HashSet::new();
 
@@ -90,18 +112,27 @@ fn list_windows_enum(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
   to_window_infos(enum_windows_handles()?, &options)
 }
 
-pub fn window_from_id(id: &str, options: ResolvedOptions) -> Result<Option<WindowInfo>> {
+pub fn window_from_id(
+  id: &str,
+  options: ResolvedOptions,
+) -> Result<Option<WindowInfo>> {
   match parse_hwnd(id) {
     Some(hwnd) => to_window_info(hwnd, &options),
     None => Ok(None),
   }
 }
 
-pub fn windows_above(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
+pub fn windows_above(
+  id: &str,
+  options: ResolvedOptions,
+) -> Result<Vec<WindowInfo>> {
   windows_above_primary(id, options).or_else(|_| windows_above_enum(id, options))
 }
 
-fn windows_above_primary(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
+fn windows_above_primary(
+  id: &str,
+  options: ResolvedOptions,
+) -> Result<Vec<WindowInfo>> {
   let Some(target) = parse_hwnd(id) else {
     return Ok(Vec::new());
   };
@@ -125,7 +156,10 @@ fn windows_above_primary(id: &str, options: ResolvedOptions) -> Result<Vec<Windo
   Ok(results)
 }
 
-fn windows_above_enum(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
+fn windows_above_enum(
+  id: &str,
+  options: ResolvedOptions,
+) -> Result<Vec<WindowInfo>> {
   let Some(target) = parse_hwnd(id) else {
     return Ok(Vec::new());
   };
@@ -158,7 +192,10 @@ pub fn foreground_window(options: ResolvedOptions) -> Result<Option<WindowInfo>>
   to_window_info(hwnd, &options)
 }
 
-fn to_window_info(hwnd: HWND, options: &ResolvedOptions) -> Result<Option<WindowInfo>> {
+fn to_window_info(
+  hwnd: HWND,
+  options: &ResolvedOptions,
+) -> Result<Option<WindowInfo>> {
   if is_null_hwnd(hwnd) {
     return Ok(None);
   }
@@ -185,15 +222,13 @@ fn to_window_info(hwnd: HWND, options: &ResolvedOptions) -> Result<Option<Window
       Ok(value) => value,
       Err(_) => None,
     }
-  }
-  else {
+  } else {
     None
   };
 
   let owner_pid = if options.include_owner_pid {
     Some(read_owner_pid(hwnd))
-  }
-  else {
+  } else {
     None
   };
 
@@ -256,7 +291,12 @@ fn read_title(hwnd: HWND) -> Result<Option<String>> {
   buffer.truncate(copied as usize);
   String::from_utf16(&buffer)
     .map(Some)
-    .map_err(|err| Error::new(Status::GenericFailure, format!("UTF-16 decode failed: {err}")))
+    .map_err(|err| {
+      Error::new(
+        Status::GenericFailure,
+        format!("UTF-16 decode failed: {err}"),
+      )
+    })
 }
 
 fn read_owner_pid(hwnd: HWND) -> u32 {
@@ -332,13 +372,22 @@ fn top_window() -> Result<HWND> {
 }
 
 fn window_next(hwnd: HWND) -> Result<HWND> {
-  win_hwnd(unsafe { GetWindow(hwnd, GW_HWNDNEXT) }, "GetWindow(GW_HWNDNEXT)")
+  win_hwnd(
+    unsafe { GetWindow(hwnd, GW_HWNDNEXT) },
+    "GetWindow(GW_HWNDNEXT)",
+  )
 }
 
 fn window_prev(hwnd: HWND) -> Result<HWND> {
-  win_hwnd(unsafe { GetWindow(hwnd, GW_HWNDPREV) }, "GetWindow(GW_HWNDPREV)")
+  win_hwnd(
+    unsafe { GetWindow(hwnd, GW_HWNDPREV) },
+    "GetWindow(GW_HWNDPREV)",
+  )
 }
 
-fn win_err<T>(result: WinResult<T>, name: &str) -> Result<T> {
+fn win_err<T>(
+  result: WinResult<T>,
+  name: &str,
+) -> Result<T> {
   result.map_err(|err| Error::new(Status::GenericFailure, format!("{name} failed: {err}")))
 }
