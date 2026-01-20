@@ -1,10 +1,12 @@
+use core::ffi::c_void;
 use std::collections::HashSet;
 use std::mem;
 
 use napi::bindgen_prelude::{Error, Result, Status};
 
 use super::{ResolvedOptions, WindowInfo, WindowRect, WIN32_WINDOW_ID_PREFIX};
-use windows::Win32::Foundation::{HWND, RECT};
+use windows::core::Result as WinResult;
+use windows::Win32::Foundation::{BOOL, HWND, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use windows::Win32::UI::WindowsAndMessaging::{
   GetForegroundWindow, GetTopWindow, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW,
@@ -16,14 +18,14 @@ pub fn list_windows(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
   let mut windows = Vec::new();
   let mut seen = HashSet::new();
 
-  let mut current = unsafe { GetTopWindow(HWND(0)) };
+  let mut current = top_window()?;
   while !is_null_hwnd(current) {
     if let Some(window) = to_window_info(current, &options)? {
       if seen.insert(window.id.clone()) {
         windows.push(window);
       }
     }
-    current = unsafe { GetWindow(current, GW_HWNDNEXT) };
+    current = window_next(current)?;
   }
 
   Ok(windows)
@@ -46,7 +48,7 @@ pub fn windows_above(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInf
 
   let mut results = Vec::new();
   let mut seen = HashSet::new();
-  let mut current = unsafe { GetWindow(target, GW_HWNDPREV) };
+  let mut current = window_prev(target)?;
 
   while !is_null_hwnd(current) {
     if let Some(window) = to_window_info(current, &options)? {
@@ -54,14 +56,14 @@ pub fn windows_above(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInf
         results.push(window);
       }
     }
-    current = unsafe { GetWindow(current, GW_HWNDPREV) };
+    current = window_prev(current)?;
   }
 
   Ok(results)
 }
 
 pub fn foreground_window(options: ResolvedOptions) -> Result<Option<WindowInfo>> {
-  let hwnd = unsafe { GetForegroundWindow() };
+  let hwnd = foreground_hwnd();
   if is_null_hwnd(hwnd) {
     return Ok(None);
   }
@@ -82,13 +84,13 @@ fn to_window_info(hwnd: HWND, options: &ResolvedOptions) -> Result<Option<Window
     return Ok(None);
   }
 
-  let ex_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) } as u32;
+  let ex_style = read_ex_style(hwnd);
   if is_tool_window(ex_style) || is_no_activate(ex_style) {
     return Ok(None);
   }
 
-  let is_visible = unsafe { IsWindowVisible(hwnd).as_bool() };
-  let is_minimized = unsafe { IsIconic(hwnd).as_bool() };
+  let is_visible = window_visible(hwnd);
+  let is_minimized = window_iconic(hwnd);
   let is_cloaked = read_cloaked(hwnd);
 
   let title = if options.include_title {
@@ -136,10 +138,7 @@ struct RectParts {
 
 fn read_rect(hwnd: HWND) -> Result<RectParts> {
   let mut rect = RECT::default();
-  let ok = unsafe { GetWindowRect(hwnd, &mut rect) };
-  if !ok.as_bool() {
-    return Err(Error::new(Status::GenericFailure, "GetWindowRect failed"));
-  }
+  win_bool(unsafe { GetWindowRect(hwnd, &mut rect) }, "GetWindowRect")?;
 
   let width = rect.right - rect.left;
   let height = rect.bottom - rect.top;
@@ -160,9 +159,8 @@ fn read_title(hwnd: HWND) -> Result<Option<String>> {
     return Ok(None);
   }
 
-  // length is number of UTF-16 code units without the null terminator
   let mut buffer = vec![0u16; length as usize + 1];
-  let copied = unsafe { GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32) };
+  let copied = unsafe { GetWindowTextW(hwnd, &mut buffer) };
   if copied <= 0 {
     return Ok(None);
   }
@@ -187,7 +185,7 @@ fn read_cloaked(hwnd: HWND) -> bool {
     DwmGetWindowAttribute(
       hwnd,
       DWMWA_CLOAKED,
-      &mut cloaked as *mut u32 as *mut core::ffi::c_void,
+      &mut cloaked as *mut u32 as *mut c_void,
       mem::size_of::<u32>() as u32,
     )
   };
@@ -206,7 +204,7 @@ fn parse_hwnd(id: &str) -> Option<HWND> {
     return None;
   }
 
-  Some(HWND(value as isize))
+  Some(HWND(value as usize as *mut c_void))
 }
 
 fn hwnd_to_id(hwnd: HWND) -> String {
@@ -214,7 +212,7 @@ fn hwnd_to_id(hwnd: HWND) -> String {
 }
 
 fn is_null_hwnd(hwnd: HWND) -> bool {
-  hwnd.0 == 0
+  hwnd.0.is_null()
 }
 
 fn is_tool_window(ex_style: u32) -> bool {
@@ -223,4 +221,45 @@ fn is_tool_window(ex_style: u32) -> bool {
 
 fn is_no_activate(ex_style: u32) -> bool {
   ex_style & WS_EX_NOACTIVATE.0 != 0
+}
+
+fn read_ex_style(hwnd: HWND) -> u32 {
+  unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 }
+}
+
+fn window_visible(hwnd: HWND) -> bool {
+  unsafe { IsWindowVisible(hwnd).as_bool() }
+}
+
+fn window_iconic(hwnd: HWND) -> bool {
+  unsafe { IsIconic(hwnd).as_bool() }
+}
+
+fn foreground_hwnd() -> HWND {
+  unsafe { GetForegroundWindow() }
+}
+
+fn top_window() -> Result<HWND> {
+  win_err(unsafe { GetTopWindow(None) }, "GetTopWindow")
+}
+
+fn window_next(hwnd: HWND) -> Result<HWND> {
+  win_err(unsafe { GetWindow(hwnd, GW_HWNDNEXT) }, "GetWindow(GW_HWNDNEXT)")
+}
+
+fn window_prev(hwnd: HWND) -> Result<HWND> {
+  win_err(unsafe { GetWindow(hwnd, GW_HWNDPREV) }, "GetWindow(GW_HWNDPREV)")
+}
+
+fn win_err<T>(result: WinResult<T>, name: &str) -> Result<T> {
+  result.map_err(|err| Error::new(Status::GenericFailure, format!("{name} failed: {err}")))
+}
+
+fn win_bool(ok: BOOL, name: &str) -> Result<()> {
+  if ok.as_bool() {
+    Ok(())
+  }
+  else {
+    Err(Error::new(Status::GenericFailure, format!("{name} failed")))
+  }
 }

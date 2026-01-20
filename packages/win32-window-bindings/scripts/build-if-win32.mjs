@@ -9,10 +9,16 @@ if (!isWindows) {
   process.exit(0)
 }
 
-const result = spawnSync('napi', ['build', '--platform', '--release'], {
-  stdio: 'inherit',
-  env: process.env,
-})
+const pnpmCmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+
+const result = spawnSync(
+  pnpmCmd,
+  ['dlx', '@napi-rs/cli@2.18.0', 'build', '--platform', '--release'],
+  {
+    stdio: 'inherit',
+    env: process.env,
+  },
+)
 
 if (result.error) {
   console.error('[win32-window-bindings] Failed to spawn `napi` CLI:', result.error)

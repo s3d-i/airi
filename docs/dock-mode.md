@@ -53,6 +53,10 @@ This document describes a cross-platform Dock Mode for AIRI that keeps an AIRI o
   - `explicit stop -> Detached` (clears target).
 
 ### Platform Strategy
+#### Windows prerequisites
+- Visual Studio 2022 Build Tools with Desktop C++ + Windows 10/11 SDK.
+- Rust MSVC target: `rustup target add x86_64-pc-windows-msvc` (required for `@proj-airi/win32-window-bindings` during install/prepare).
+
 **macOS (Phase 1)**
 - Core Graphics polling: `CGWindowListCopyWindowInfo(optionOnScreenOnly|excludeDesktopElements)` to list; `optionOnScreenAboveWindow` for z-order check. Filter transient/system layers (layer > 0, tiny bounds, alpha ~0).
 - Frontmost heuristic: `probeAbove(targetId)` returns zero “real” windows.
