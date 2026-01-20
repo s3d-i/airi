@@ -24,6 +24,8 @@ import ResizeHandler from './components/ResizeHandler.vue'
 import { electronOpenSettings, electronStartTrackMousePosition } from '../shared/eventa'
 import { useElectronEventaContext } from './composables/electron-vueuse'
 
+import './styles/hue.css'
+
 const { isDark: dark } = useTheme()
 const i18n = useI18n()
 const contextBridgeStore = useContextBridgeStore()
@@ -84,23 +86,4 @@ onUnmounted(() => contextBridgeStore.dispose())
 </template>
 
 <style>
-/* We need this to properly animate the CSS variable */
-@property --chromatic-hue {
-  syntax: '<number>';
-  initial-value: 0;
-  inherits: true;
-}
-
-@keyframes hue-anim {
-  from {
-    --chromatic-hue: 0;
-  }
-  to {
-    --chromatic-hue: 360;
-  }
-}
-
-.dynamic-hue {
-  animation: hue-anim 10s linear infinite;
-}
 </style>

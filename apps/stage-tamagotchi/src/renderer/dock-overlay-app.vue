@@ -9,6 +9,8 @@ import { computed, onMounted } from 'vue'
 
 import { useElectronRelativeMouse } from './composables/electron-vueuse'
 
+import './styles/hue.css'
+
 const settingsStore = useSettings()
 useStageThemeSync()
 
