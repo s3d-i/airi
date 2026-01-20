@@ -44,10 +44,8 @@ fn enum_windows_handles() -> Result<Vec<HWND>> {
   }
 
   let mut handles = Vec::new();
-  let ok = unsafe { EnumWindows(Some(collect), LPARAM(&mut handles as *mut _ as isize)) };
-  if !ok.as_bool() {
-    return Err(Error::new(Status::GenericFailure, String::from("EnumWindows failed")));
-  }
+  let result = unsafe { EnumWindows(Some(collect), LPARAM(&mut handles as *mut _ as isize)) };
+  result.map_err(|err| Error::new(Status::GenericFailure, format!("EnumWindows failed: {err}")))?;
 
   Ok(handles)
 }
