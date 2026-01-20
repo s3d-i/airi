@@ -6,10 +6,10 @@ use napi::bindgen_prelude::{Error, Result, Status};
 
 use super::{ResolvedOptions, WindowInfo, WindowRect, WIN32_WINDOW_ID_PREFIX};
 use windows::core::Result as WinResult;
-use windows::Win32::Foundation::{HWND, RECT};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use windows::Win32::UI::WindowsAndMessaging::{
-  GetForegroundWindow, GetTopWindow, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW,
+  EnumWindows, GetForegroundWindow, GetTopWindow, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW,
   GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, GW_HWNDNEXT, GW_HWNDPREV, GWL_EXSTYLE,
   WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
@@ -23,12 +23,55 @@ use windows::Win32::UI::WindowsAndMessaging::{
 fn win_hwnd(result: WinResult<HWND>, name: &str) -> Result<HWND> {
   match result {
     Ok(hwnd) => Ok(hwnd),
-    Err(err) if err.code().0 == 0 => Ok(HWND::default()),
+    // Some HWND-returning APIs occasionally bubble up spurious HRESULTs (e.g. WAIT_TIMEOUT) even
+    // though the call simply reached the end of the z-order. Treat these as a graceful stop so we
+    // can fall back to alternate enumeration without surfacing noisy warnings upstream.
+    Err(err)
+      if matches!(err.code().0, 0 | 0x80070102 | 0x800700cb) => Ok(HWND::default()),
     Err(err) => Err(Error::new(Status::GenericFailure, format!("{name} failed: {err}"))),
   }
 }
 
+/// Collect HWNDs in top-to-bottom z-order using EnumWindows. EnumWindows order is stable enough
+/// for our purposes and avoids repeated GetWindow hops that can return transient errors on some
+/// Windows builds.
+fn enum_windows_handles() -> Result<Vec<HWND>> {
+  extern "system" fn collect(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    // SAFETY: lparam points to a live Vec<HWND> owned by the caller.
+    let handles = unsafe { &mut *(lparam.0 as *mut Vec<HWND>) };
+    handles.push(hwnd);
+    BOOL(1)
+  }
+
+  let mut handles = Vec::new();
+  let ok = unsafe { EnumWindows(Some(collect), LPARAM(&mut handles as *mut _ as isize)) };
+  if !ok.as_bool() {
+    return Err(Error::new(Status::GenericFailure, String::from("EnumWindows failed")));
+  }
+
+  Ok(handles)
+}
+
+fn to_window_infos(handles: Vec<HWND>, options: &ResolvedOptions) -> Result<Vec<WindowInfo>> {
+  let mut windows = Vec::new();
+  let mut seen = HashSet::new();
+
+  for hwnd in handles {
+    if let Some(window) = to_window_info(hwnd, options)? {
+      if seen.insert(window.id.clone()) {
+        windows.push(window);
+      }
+    }
+  }
+
+  Ok(windows)
+}
+
 pub fn list_windows(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
+  list_windows_primary(options).or_else(|_| list_windows_enum(options))
+}
+
+fn list_windows_primary(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
   let mut windows = Vec::new();
   let mut seen = HashSet::new();
 
@@ -45,6 +88,10 @@ pub fn list_windows(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
   Ok(windows)
 }
 
+fn list_windows_enum(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
+  to_window_infos(enum_windows_handles()?, &options)
+}
+
 pub fn window_from_id(id: &str, options: ResolvedOptions) -> Result<Option<WindowInfo>> {
   match parse_hwnd(id) {
     Some(hwnd) => to_window_info(hwnd, &options),
@@ -53,6 +100,10 @@ pub fn window_from_id(id: &str, options: ResolvedOptions) -> Result<Option<Windo
 }
 
 pub fn windows_above(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
+  windows_above_primary(id, options).or_else(|_| windows_above_enum(id, options))
+}
+
+fn windows_above_primary(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
   let Some(target) = parse_hwnd(id) else {
     return Ok(Vec::new());
   };
@@ -71,6 +122,30 @@ pub fn windows_above(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInf
       }
     }
     current = window_prev(current)?;
+  }
+
+  Ok(results)
+}
+
+fn windows_above_enum(id: &str, options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
+  let Some(target) = parse_hwnd(id) else {
+    return Ok(Vec::new());
+  };
+
+  let handles = enum_windows_handles()?;
+  let Some(pos) = handles.iter().position(|&hwnd| hwnd == target) else {
+    return Ok(Vec::new());
+  };
+
+  // EnumWindows returns top-most first. Windows above target are those before its index.
+  let mut seen = HashSet::new();
+  let mut results = Vec::new();
+  for hwnd in handles.into_iter().take(pos) {
+    if let Some(window) = to_window_info(hwnd, &options)? {
+      if seen.insert(window.id.clone()) {
+        results.push(window);
+      }
+    }
   }
 
   Ok(results)
