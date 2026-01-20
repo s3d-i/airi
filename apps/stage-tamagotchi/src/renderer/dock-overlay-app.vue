@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { Live2DScene } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
+import { useStageThemeSync } from '@proj-airi/stage-ui/composables'
 import { useSettings } from '@proj-airi/stage-ui/stores/settings'
-import { useMouse, useWindowSize } from '@vueuse/core'
+import { useWindowSize } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted } from 'vue'
 
+import { useElectronRelativeMouse } from './composables/electron-vueuse'
+
 const settingsStore = useSettings()
+useStageThemeSync()
 
 const {
   live2dAutoBlinkEnabled,
@@ -22,7 +26,7 @@ const {
 } = storeToRefs(settingsStore)
 
 const { width, height } = useWindowSize()
-const mouse = useMouse({ initialValue: { x: width.value / 2, y: height.value / 2 } })
+const mouse = useElectronRelativeMouse({ initialValue: { x: width.value / 2, y: height.value / 2 } })
 
 const focusAt = computed(() => ({
   x: mouse.x.value,

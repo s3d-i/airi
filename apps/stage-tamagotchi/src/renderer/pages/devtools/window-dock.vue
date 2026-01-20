@@ -40,11 +40,13 @@ function applyTargetFilter(list: WindowTargetSummary[]) {
   }
 }
 
-async function refreshTargets(options?: { silent?: boolean }) {
+async function refreshTargets(options?: { silent?: boolean } | Event) {
   if (isRefreshingTargets.value)
     return
 
-  const silent = options?.silent === true
+  const silent = typeof options === 'object' && options !== null && 'silent' in options
+    ? (options as { silent?: boolean }).silent === true
+    : false
 
   if (!silent) {
     isLoading.value = true

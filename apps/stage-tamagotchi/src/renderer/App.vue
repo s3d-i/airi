@@ -2,6 +2,7 @@
 import { defineInvoke, defineInvokeHandler } from '@moeru/eventa'
 import { themeColorFromValue, useThemeColor } from '@proj-airi/stage-layouts/composables/theme-color'
 import { ToasterRoot } from '@proj-airi/stage-ui/components'
+import { useStageThemeSync } from '@proj-airi/stage-ui/composables'
 import { useSharedAnalyticsStore } from '@proj-airi/stage-ui/stores/analytics'
 import { useCharacterOrchestratorStore } from '@proj-airi/stage-ui/stores/character'
 import { useDisplayModelsStore } from '@proj-airi/stage-ui/stores/display-models'
@@ -28,7 +29,7 @@ const i18n = useI18n()
 const contextBridgeStore = useContextBridgeStore()
 const displayModelsStore = useDisplayModelsStore()
 const settingsStore = useSettings()
-const { language, themeColorsHue, themeColorsHueDynamic } = storeToRefs(settingsStore)
+const { language } = storeToRefs(settingsStore)
 const onboardingStore = useOnboardingStore()
 const router = useRouter()
 const route = useRoute()
@@ -37,6 +38,9 @@ const serverChannelStore = useModsServerChannelStore()
 const characterOrchestratorStore = useCharacterOrchestratorStore()
 const analyticsStore = useSharedAnalyticsStore()
 usePerfTracerBridgeStore()
+
+// Sync chromatic hue + dynamic hue class to documentElement for this window.
+useStageThemeSync()
 
 watch(language, () => {
   i18n.locale.value = language.value
@@ -67,14 +71,6 @@ onMounted(async () => {
   // Listen for open-settings IPC message from main process
   defineInvokeHandler(context.value, electronOpenSettings, () => router.push('/settings'))
 })
-
-watch(themeColorsHue, () => {
-  document.documentElement.style.setProperty('--chromatic-hue', themeColorsHue.value.toString())
-}, { immediate: true })
-
-watch(themeColorsHueDynamic, () => {
-  document.documentElement.classList.toggle('dynamic-hue', themeColorsHueDynamic.value)
-}, { immediate: true })
 
 onUnmounted(() => contextBridgeStore.dispose())
 </script>
