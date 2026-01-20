@@ -6,7 +6,7 @@ use napi::bindgen_prelude::{Error, Result, Status};
 
 use super::{ResolvedOptions, WindowInfo, WindowRect, WIN32_WINDOW_ID_PREFIX};
 use windows::core::Result as WinResult;
-use windows::Win32::Foundation::{BOOL, HWND, RECT};
+use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use windows::Win32::UI::WindowsAndMessaging::{
   GetForegroundWindow, GetTopWindow, GetWindow, GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW,
@@ -254,13 +254,4 @@ fn window_prev(hwnd: HWND) -> Result<HWND> {
 
 fn win_err<T>(result: WinResult<T>, name: &str) -> Result<T> {
   result.map_err(|err| Error::new(Status::GenericFailure, format!("{name} failed: {err}")))
-}
-
-fn win_bool(ok: BOOL, name: &str) -> Result<()> {
-  if ok.as_bool() {
-    Ok(())
-  }
-  else {
-    Err(Error::new(Status::GenericFailure, format!("{name} failed")))
-  }
 }
