@@ -138,7 +138,8 @@ struct RectParts {
 
 fn read_rect(hwnd: HWND) -> Result<RectParts> {
   let mut rect = RECT::default();
-  win_bool(unsafe { GetWindowRect(hwnd, &mut rect) }, "GetWindowRect")?;
+  // windows crate 0.59 makes GetWindowRect return WinResult<()>, so treat it like other fallible APIs
+  win_err(unsafe { GetWindowRect(hwnd, &mut rect) }, "GetWindowRect")?;
 
   let width = rect.right - rect.left;
   let height = rect.bottom - rect.top;
