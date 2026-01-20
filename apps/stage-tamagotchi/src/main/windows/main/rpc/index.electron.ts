@@ -17,9 +17,11 @@ export function setupBaseWindowElectronInvokes(params: {
   context: ReturnType<typeof createContext>['context']
   window: BrowserWindow
 }) {
-  createScreenService({ context: params.context, window: params.window })
-  createWindowService({ context: params.context, window: params.window })
+  const screenService = createScreenService({ context: params.context, window: params.window })
+  const windowService = createWindowService({ context: params.context, window: params.window })
   createAppService({ context: params.context, window: params.window })
+
+  return { screenService, windowService }
 }
 
 export function setupMainWindowElectronInvokes(params: {
