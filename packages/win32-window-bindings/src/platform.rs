@@ -14,6 +14,20 @@ use windows::Win32::UI::WindowsAndMessaging::{
   WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 
+/// Convert a Win32 API call that returns an HWND into a Result.
+/// Some HWND-returning APIs (e.g. GetWindow/GW_HWNDNEXT) legitimately return NULL
+/// when the iteration reaches the end, but the windows crate still surfaces that
+/// as an Err whose code is 0 (ERROR_SUCCESS). Treat that specific case as a
+/// successful "no window" sentinel rather than a hard failure so dock mode
+/// can gracefully fall back to Electron when the z-order is exhausted.
+fn win_hwnd(result: WinResult<HWND>, name: &str) -> Result<HWND> {
+  match result {
+    Ok(hwnd) => Ok(hwnd),
+    Err(err) if err.code().0 == 0 => Ok(HWND::default()),
+    Err(err) => Err(Error::new(Status::GenericFailure, format!("{name} failed: {err}"))),
+  }
+}
+
 pub fn list_windows(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
   let mut windows = Vec::new();
   let mut seen = HashSet::new();
@@ -241,15 +255,15 @@ fn foreground_hwnd() -> HWND {
 }
 
 fn top_window() -> Result<HWND> {
-  win_err(unsafe { GetTopWindow(None) }, "GetTopWindow")
+  win_hwnd(unsafe { GetTopWindow(None) }, "GetTopWindow")
 }
 
 fn window_next(hwnd: HWND) -> Result<HWND> {
-  win_err(unsafe { GetWindow(hwnd, GW_HWNDNEXT) }, "GetWindow(GW_HWNDNEXT)")
+  win_hwnd(unsafe { GetWindow(hwnd, GW_HWNDNEXT) }, "GetWindow(GW_HWNDNEXT)")
 }
 
 fn window_prev(hwnd: HWND) -> Result<HWND> {
-  win_err(unsafe { GetWindow(hwnd, GW_HWNDPREV) }, "GetWindow(GW_HWNDPREV)")
+  win_hwnd(unsafe { GetWindow(hwnd, GW_HWNDPREV) }, "GetWindow(GW_HWNDPREV)")
 }
 
 fn win_err<T>(result: WinResult<T>, name: &str) -> Result<T> {
