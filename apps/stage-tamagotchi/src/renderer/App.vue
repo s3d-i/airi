@@ -75,8 +75,6 @@ import {
 } from './stores/tools'
 import { resolveInitialRendererRoutePath, resolveRendererWindowContext } from './window-context'
 
-import './styles/hue.css'
-
 const { isDark: dark } = useTheme()
 const settingsStore = useSettings()
 const { language } = storeToRefs(settingsStore)
