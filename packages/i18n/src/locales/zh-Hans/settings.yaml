@@ -1838,3 +1838,7 @@ wip:
   title: 正在开发中
   description: >-
     此功能正在开发中，尚未公开发布。请在未来的更新中再次查看此功能。
+
+streamer-mode:
+  title: 直播模式
+  description: 隐藏角色窗口中的麦克风和登录提示。
