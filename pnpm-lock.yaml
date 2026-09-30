@@ -2522,6 +2522,9 @@ importers:
       '@proj-airi/ui':
         specifier: workspace:^
         version: link:../../packages/ui
+      '@proj-airi/ui-loading-screens':
+        specifier: workspace:^
+        version: link:../../packages/ui-loading-screens
       '@proj-airi/ui-transitions':
         specifier: workspace:^
         version: link:../../packages/ui-transitions
@@ -4579,6 +4582,9 @@ importers:
       '@proj-airi/ui':
         specifier: workspace:^
         version: link:../ui
+      '@proj-airi/ui-loading-screens':
+        specifier: workspace:^
+        version: link:../ui-loading-screens
       '@proj-airi/vite-plugin-sherpaw':
         specifier: workspace:^
         version: link:../vite-plugin-sherpaw
@@ -5360,12 +5366,18 @@ importers:
 
   packages/ui-loading-screens:
     dependencies:
+      '@fontsource-variable/comfortaa':
+        specifier: 'catalog:'
+        version: 5.3.0
       '@moeru/std':
         specifier: 'catalog:'
         version: 0.1.0-beta.17
       '@proj-airi/font-departure-mono':
         specifier: workspace:^
         version: link:../font-departure-mono
+      '@proj-airi/ui':
+        specifier: workspace:^
+        version: link:../ui
       '@rive-app/canvas-lite':
         specifier: 'catalog:'
         version: 2.40.1
@@ -5375,13 +5387,13 @@ importers:
       '@vueuse/motion':
         specifier: 'catalog:'
         version: 3.0.3(magicast@0.5.4)(vue@3.5.41(typescript@6.0.3))
+      vaul-vue:
+        specifier: 'catalog:'
+        version: 0.4.1(reka-ui@2.10.3(vue@3.5.41(typescript@6.0.3)))(vue@3.5.41(typescript@6.0.3))
       vue:
         specifier: 'catalog:'
         version: 3.5.41(typescript@6.0.3)
     devDependencies:
-      '@proj-airi/ui':
-        specifier: workspace:^
-        version: link:../ui
       '@unocss/reset':
         specifier: 'catalog:'
         version: 66.7.5
