@@ -26,6 +26,29 @@ ConfigKV shares the write function while retaining its existing read policy.
 Keys use domain names: `config:{key}`, `stripe:prices`, and `user:{userId}:flux`.
 The cache functions do not add a key prefix.
 
+## Flux usage
+
+`flux_usage` records one confirmed micro-Flux fee for each `(userId, source.type, source.id)`. Rows are append-only.
+`flux_transaction` records integer balance changes only. `user_flux` stores integer Flux and outstanding micro-Flux.
+One Flux equals 1,000,000 micro-Flux.
+LLM and TTS fees share one pool. Outstanding fees do not expire.
+`BillingService.postFluxUsage({ userId, source: { type, id }, amountMicroFlux, detail? })` accepts confirmed amounts.
+The accounting core has no model, provider, turn, attempt, or pricing dependency.
+A service puts its own evidence in `detail`. A new service needs a new `source.type` and no new table.
+A fee posts once. A replay with the same amount returns the first result. A replay with another amount fails.
+A pooled debit can include earlier fees from other services.
+Use `flux_usage` for service spend reports. Do not attribute a pooled debit to one service.
+Admission reads PostgreSQL. The display cache contains both wallet fields and expires after 60 seconds.
+Credits settle affordable outstanding fees. Admin balance changes preserve outstanding fees.
+The ledger must always satisfy: sum of fees = debited Flux x 1,000,000 + outstanding micro-Flux.
+
+`GET /api/v1/flux/usage` returns paginated fees from `flux_usage`. Wallet history returns integer balance changes.
+
+Old Redis TTS character counters are not migrated. The old meter already forgave a residual of less than one Flux.
+Stop old API writers before the new version starts. Mixed old and new writers are unsupported.
+
+See [the Flux usage ADR](../../docs/ai/adr/2026-10-04-flux-usage.md) for invariants and migration policy.
+
 ## Object storage
 
 The API provides an optional S3 adapter for private objects. It supports server
@@ -197,21 +220,20 @@ This example is not a production sale-price recommendation. No default sale pric
 `LLM_MINIMUM_BALANCE` is the minimum callable balance. It defaults to five Flux.
 It is not a fixed request charge or a maximum-cost reservation.
 `FLUX_PER_REQUEST` and `FLUX_PER_1K_TOKENS` are no longer read by hosted LLM billing.
-The shared debit primitive, TTS character metering and ASR metering remain available.
+Confirmed service fees enter the shared micro-Flux accumulator.
 
 Before any network dispatch, each eligible upstream must have a supported cost adapter and complete pricing.
 Missing configuration rejects the request with `LLM_BILLING_UNAVAILABLE`; alias fallback cannot hide this error.
 Only the OpenRouter adapter is implemented. Other gateways cannot serve hosted LLM traffic until they have an explicit adapter and prices.
 
-Missing or invalid returned cost, BYOK fees, and incomplete output leave a pending settlement without a token-rate estimate.
-Each request charges `ceil(costUsd * fluxPerUsd * multiplier)` in whole Flux, after applying the multiplier.
-An explicit zero cost settles at zero. Every positive cost rounds up; no fractional remainder carries between requests.
-Zero charges do not create debit ledger rows. Underfunded settlements increment the insufficient-balance metric once, not on replay.
-Routing failures before any upstream dispatch close the intake as `cancelled/not_dispatched`.
-Unknown outcomes after dispatch stay pending.
-Billing retains the original price snapshot, cost source, sanitized provider usage and provider/generation identity for reconciliation.
-Settlement stores `requestedFlux` and `chargedFlux`; its charged amount is a result snapshot committed with the ledger.
-`flux_transaction` owns actual balance changes and references the settlement, without copying its cost and price fields.
+Missing or invalid returned cost, BYOK fees, and incomplete output post no fee. There is no token-rate estimate.
+Each request posts `ceil(costUsd * fluxPerUsd * multiplier * 1,000,000)` micro-Flux with source `llm:{requestId}`.
+An explicit zero cost posts at zero. Fractional fees accumulate across services before integer wallet settlement.
+Zero fees do not create debit ledger rows. Underfunded settlements increment the insufficient-balance metric once, not on replay.
+`flux_usage.detail` keeps the price snapshot, cost source, provider, model, and generation ID.
+The request log and attempts keep the provider evidence. A request with a log and no `flux_usage` row is unbilled.
+Reconcile unbilled requests by joining the request log with `flux_usage` on the request ID.
+The `llm_request_settlement` table is a read-only archive of whole-Flux settlements. No code writes to it.
 Request-log `fluxConsumed` remains an observation-time summary, not a live billing total.
 There is no automatic reconciliation worker in this release.
 
@@ -221,7 +243,7 @@ This release does not implement that adapter.
 
 Request tracking #2673 is merged. Billing #2644 adds only migration 0027.
 Apply `0026_llm_request_tracking.sql` before `0027_llm_cost_settlement.sql`.
-Configure supported provider prices before deploying the billing change; missing prices intentionally stop LLM calls.
+Configure supported provider prices before deploying the billing change. Missing prices stop LLM calls.
 These migrations replace unpublished PR drafts and must not be applied over an already-applied earlier draft.
 
 See the [billing ADR](../../docs/ai/adr/2026-09-23-provider-cost-billing.md) for accounting ownership and verification boundaries.

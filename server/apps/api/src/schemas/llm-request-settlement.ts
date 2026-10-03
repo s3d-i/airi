@@ -2,7 +2,12 @@ import { bigint, index, jsonb, pgTable, text, timestamp, uniqueIndex } from 'dri
 
 import { nanoid } from '../utils/id'
 
-/** Durable billing evidence survives deletion of diagnostic requests and attempts. */
+// NOTICE:
+// Read-only archive. Nothing writes to this table after `flux_usage` replaced it.
+// Root cause: LLM fees now post through `flux_usage`. The request log keeps provider evidence.
+// Source: `server/docs/ai/adr/2026-10-04-flux-usage.md`.
+// Removal condition: drop the table in a later migration after finance exports the history.
+/** Historical whole-Flux billing evidence. */
 export const llmRequestSettlement = pgTable('llm_request_settlement', {
   id: text('id').primaryKey().$defaultFn(() => nanoid()),
   userId: text('user_id').notNull(),
