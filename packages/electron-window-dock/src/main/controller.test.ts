@@ -136,6 +136,66 @@ describe('dockController', () => {
       expect(tracker.getWindowMeta).not.toHaveBeenCalled()
     })
 
+    it('keeps a pending overlay for a start that follows a stop during the creation', async () => {
+      const { controller, windows, createOverlayWindow } = setup()
+      windows.set('first', createWindowMeta('first'))
+      windows.set('second', createWindowMeta('second'))
+      const overlay = createFakeOverlayWindow(7)
+      let finishCreation!: (overlay: FakeOverlayWindow) => void
+      createOverlayWindow.mockImplementationOnce(() => new Promise((resolve) => {
+        finishCreation = resolve
+      }))
+
+      const first = controller.start('first')
+      controller.stop()
+      const second = controller.start('second')
+      finishCreation(overlay)
+      await Promise.all([first, second])
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(createOverlayWindow).toHaveBeenCalledTimes(1)
+      expect(overlay.destroy).not.toHaveBeenCalled()
+      expect(overlay.showInactive).toHaveBeenCalled()
+      expect(controller.getDebugState().targetId).toBe('second')
+      expect(controller.getDebugState().state).toBe('docking-attached-visible')
+    })
+
+    it('destroys an overlay that finishes creation after dispose', async () => {
+      const { controller, tracker, windows, createOverlayWindow } = setup()
+      windows.set('target', createWindowMeta('target'))
+      const lateOverlay = createFakeOverlayWindow(7)
+      let finishCreation!: (overlay: FakeOverlayWindow) => void
+      createOverlayWindow.mockImplementationOnce(() => new Promise((resolve) => {
+        finishCreation = resolve
+      }))
+
+      const starting = controller.start('target')
+      controller.dispose()
+      finishCreation(lateOverlay)
+      const state = await starting
+      await vi.advanceTimersByTimeAsync(5000)
+
+      expect(lateOverlay.destroy).toHaveBeenCalledTimes(1)
+      expect(state.state).toBe('detached')
+      expect(state.lastReason).toBe('disposed')
+      expect(tracker.getWindowMeta).not.toHaveBeenCalled()
+    })
+
+    it('does nothing on a start after dispose', async () => {
+      const { controller, tracker, windows, createOverlayWindow } = setup()
+      windows.set('target', createWindowMeta('target'))
+      controller.dispose()
+
+      const state = await controller.start('target')
+      await vi.advanceTimersByTimeAsync(5000)
+
+      expect(createOverlayWindow).not.toHaveBeenCalled()
+      expect(tracker.getWindowMeta).not.toHaveBeenCalled()
+      expect(state.state).toBe('detached')
+      expect(state.lastReason).toBe('disposed')
+      expect(state.targetId).toBeUndefined()
+    })
+
     it('ends the session and rethrows when the overlay creation fails', async () => {
       const { controller, tracker, windows, createOverlayWindow } = setup()
       windows.set('target', createWindowMeta('target'))
@@ -215,11 +275,16 @@ describe('dockController', () => {
 
   describe('visibility', () => {
     it('shows the overlay on a frontmost target with the viewport and padding applied', async () => {
-      const { controller, windows, overlays } = setup()
+      const { controller, windows, overlays, createOverlayWindow } = setup()
       windows.set('target', createWindowMeta('target', { bounds: { x: 100, y: 100, width: 400, height: 300 } }))
-      controller.updateConfig({ viewport: { left: 0.25, right: 0.75, top: 0, bottom: 0.5 }, padding: 10 })
+      const configured = controller.updateConfig({ viewport: { left: 0.25, right: 0.75, top: 0, bottom: 0.5 }, padding: 10 })
 
-      expect(controller.getDebugState().state).toBe('detached')
+      // A config update outside a session starts no session, creates no overlay, and schedules no tick.
+      expect(configured.state).toBe('detached')
+      expect(configured.targetId).toBeUndefined()
+      expect(configured.pollIntervalMs).toBe(0)
+      expect(createOverlayWindow).not.toHaveBeenCalled()
+      expect(vi.getTimerCount()).toBe(0)
 
       await startAndTick(controller, 'target')
 
@@ -311,6 +376,30 @@ describe('dockController', () => {
   })
 
   describe('polling', () => {
+    it('polls at burstIntervalMs after the overlay shows or the target moves, and at activeIntervalMs after that', async () => {
+      const { controller, tracker, windows } = setup()
+      windows.set('target', createWindowMeta('target'))
+      controller.updateConfig({ burstTicks: 2, burstIntervalMs: 20, activeIntervalMs: 100 })
+
+      await startAndTick(controller, 'target')
+      expect(controller.getDebugState().pollIntervalMs).toBe(20)
+
+      await vi.advanceTimersByTimeAsync(20)
+      expect(controller.getDebugState().pollIntervalMs).toBe(20)
+
+      await vi.advanceTimersByTimeAsync(20)
+      expect(controller.getDebugState().pollIntervalMs).toBe(100)
+      expect(tracker.getWindowMeta).toHaveBeenCalledTimes(3)
+
+      await vi.advanceTimersByTimeAsync(99)
+      expect(tracker.getWindowMeta).toHaveBeenCalledTimes(3)
+
+      windows.set('target', createWindowMeta('target', { bounds: { x: 150, y: 100, width: 400, height: 300 } }))
+      await vi.advanceTimersByTimeAsync(1)
+      expect(tracker.getWindowMeta).toHaveBeenCalledTimes(4)
+      expect(controller.getDebugState().pollIntervalMs).toBe(20)
+    })
+
     it('ends the session and stops polling when the target is lost', async () => {
       const { controller, tracker, windows, overlays } = setup()
       windows.set('target', createWindowMeta('target'))
@@ -400,6 +489,32 @@ describe('dockController', () => {
       await startAndTick(controller, 'target')
 
       expect(overlays[0].setBounds).toHaveBeenCalledWith({ x: 80, y: 80, width: 440, height: 340 }, false)
+    })
+  })
+
+  describe('click-through', () => {
+    it('stops click-through on a visible overlay when clickThrough changes to false', async () => {
+      const { controller, windows, overlays } = setup()
+      windows.set('target', createWindowMeta('target'))
+      await startAndTick(controller, 'target')
+      expect(overlays[0].setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true })
+
+      controller.updateConfig({ clickThrough: false })
+      await vi.advanceTimersByTimeAsync(100)
+
+      expect(overlays[0].setIgnoreMouseEvents).toHaveBeenCalledTimes(2)
+      expect(overlays[0].setIgnoreMouseEvents).toHaveBeenLastCalledWith(false)
+    })
+
+    it('does not make a new overlay click-through when clickThrough is false', async () => {
+      const { controller, windows, overlays } = setup()
+      windows.set('target', createWindowMeta('target'))
+      controller.updateConfig({ clickThrough: false })
+
+      await startAndTick(controller, 'target')
+
+      expect(overlays[0].showInactive).toHaveBeenCalled()
+      expect(overlays[0].setIgnoreMouseEvents).not.toHaveBeenCalled()
     })
   })
 
