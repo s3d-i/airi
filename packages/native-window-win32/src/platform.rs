@@ -218,10 +218,7 @@ fn to_window_info(
   let is_cloaked = read_cloaked(hwnd);
 
   let title = if options.include_title {
-    match read_title(hwnd) {
-      Ok(value) => value,
-      Err(_) => None,
-    }
+    read_title(hwnd).unwrap_or_default()
   } else {
     None
   };
