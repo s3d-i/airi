@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import type { DockConfig, DockDebugState, WindowTargetSummary } from '@proj-airi/electron-window-dock'
 
-import { defaultDockConfig } from '@proj-airi/electron-window-dock'
-import { useElectronWindowDock } from '@proj-airi/electron-window-dock/vue'
+import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
+import { defaultDockConfig, windowDock } from '@proj-airi/electron-window-dock'
 import { FieldCheckbox, FieldRange } from '@proj-airi/ui'
 import { clamp } from 'es-toolkit/math'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
-const { fetchTargets, beginDock, endDock, updateConfig, readDebugState } = useElectronWindowDock(window.electron.ipcRenderer)
+const fetchTargets = useElectronEventaInvoke(windowDock.listTargets)
+const beginDock = useElectronEventaInvoke(windowDock.start)
+const endDock = useElectronEventaInvoke(windowDock.stop)
+const updateConfig = useElectronEventaInvoke(windowDock.setConfig)
+const readDebugState = useElectronEventaInvoke(windowDock.getDebugState)
 
 const allTargets = ref<WindowTargetSummary[]>([])
 const targets = ref<WindowTargetSummary[]>([])
@@ -20,6 +24,8 @@ const status = ref<string>()
 const filterOnScreenOnly = ref(true)
 const autoRefreshTargets = ref(true)
 const targetRefreshIntervalMs = ref(1000)
+/** The shortest refresh interval of the window list. The number field has the same minimum. */
+const MIN_TARGET_REFRESH_INTERVAL_MS = 300
 
 const defaultViewport = { ...defaultDockConfig.viewport } as const
 const MIN_VIEWPORT_SPAN_PERCENT = 1
@@ -205,12 +211,14 @@ function stopDebugPolling() {
 
 function startTargetPolling() {
   stopTargetPolling()
-  if (!autoRefreshTargets.value)
+  // An empty number field gives `''`, and `setInterval` uses 0 ms for it. Such a value stops the refresh.
+  const intervalMs = Number(targetRefreshIntervalMs.value)
+  if (!autoRefreshTargets.value || !Number.isFinite(intervalMs) || intervalMs < MIN_TARGET_REFRESH_INTERVAL_MS)
     return
 
   targetPollHandle.value = window.setInterval(() => {
     refreshTargets({ silent: true })
-  }, targetRefreshIntervalMs.value)
+  }, intervalMs)
 }
 
 function stopTargetPolling() {
@@ -306,7 +314,7 @@ onBeforeUnmount(() => {
         <input
           v-model.number="targetRefreshIntervalMs"
           type="number"
-          min="300"
+          :min="MIN_TARGET_REFRESH_INTERVAL_MS"
           step="100"
           :disabled="!autoRefreshTargets"
           :class="[

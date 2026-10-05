@@ -4308,19 +4308,9 @@ importers:
       electron:
         specifier: '>=39 <44'
         version: 43.4.1(supports-color@10.2.2)
-      es-toolkit:
-        specifier: 'catalog:'
-        version: 1.51.0
       valibot:
         specifier: 'catalog:'
         version: 1.4.2(typescript@6.0.3)
-    devDependencies:
-      '@electron-toolkit/preload':
-        specifier: ^3.0.2
-        version: 3.0.2(electron@43.4.1(supports-color@10.2.2))
-      vue:
-        specifier: 'catalog:'
-        version: 3.5.41(typescript@6.0.3)
     optionalDependencies:
       '@proj-airi/native-window-win32':
         specifier: workspace:*

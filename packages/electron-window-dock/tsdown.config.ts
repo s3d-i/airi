@@ -6,7 +6,6 @@ const sharedConfig: UserConfig = {
   format: 'esm',
   external: [
     'electron',
-    'vue',
     '@proj-airi/native-window-win32',
   ],
   exports: true,
@@ -25,15 +24,6 @@ export default defineConfig([
     platform: 'neutral',
     entry: {
       index: 'src/index.ts',
-    },
-  },
-  {
-    ...sharedConfig,
-    unbundle: true,
-    platform: 'browser',
-    entry: {
-      vue: 'src/vue/index.ts',
-      renderer: 'src/renderer.ts',
     },
   },
 ])
