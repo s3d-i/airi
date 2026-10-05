@@ -129,6 +129,7 @@ The main process validates each update with Valibot. An invalid update throws, a
 The tests use a fake tracker. Nobody ran this version on Windows. These parts are not verified on Windows:
 
 - The Win32 tracker filters the windows of this process from the windows above the target.
+- The Win32 tracker reports no windows above a foreground target, so that target counts as frontmost.
 - The target list drops windows of this process that have the overlay title.
 - The fullscreen check accepts a difference of 6 DIP between the target bounds and the display bounds.
 - `screen.screenToDipRect` converts the rects of the binding to DIP.

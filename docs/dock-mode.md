@@ -75,9 +75,11 @@ When `clickThrough` is `true`, the overlay calls `setIgnoreMouseEvents(true, { f
 
 #### Windows
 
-- The tracker uses `listWindows`, `getWindow`, and `getWindowsAbove` of `@proj-airi/native-window-win32`.
+- The tracker uses `listWindows`, `getWindow`, `getWindowsAbove`, and `getForegroundWindow` of `@proj-airi/native-window-win32`.
 - It converts each rect from physical pixels to DIP with `screen.screenToDipRect`.
 - The z-order walk drops each window of this process. AIRI windows, for example the always-on-top main window, do not hide the overlay.
+- If the target is the foreground window, the tracker reports no windows above it. Then the target counts as frontmost, even when the walk reports other windows above it.
+- At debug level, the tracker logs the owner PID, the title, and the extended style of each window that the walk reports above the target. It logs again only when the list changes. The app sets the global log level to `Log`, so these logs do not show by default.
 - The first tracker call loads the binding. If the load fails, the tracker logs one warning and uses the Electron-only fallback until the app quits.
 - If a call to the binding fails, the tracker logs a warning and uses the fallback for that call.
 
@@ -125,6 +127,7 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 Nobody ran this version on Windows. These parts are not verified on Windows:
 
 - The z-order walk filters the windows of this process. An older version subtracted one window above the target. The cause of that window is not verified on Windows.
+- A foreground target counts as frontmost. This check replaces the subtraction. Its effect on the extra window is not verified on Windows.
 - The target list drops windows of this process that have the overlay title.
 - The fullscreen check accepts a difference of 6 DIP.
 - `screen.screenToDipRect` converts the rects of the binding to DIP.
