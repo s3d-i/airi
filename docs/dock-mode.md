@@ -55,7 +55,7 @@ This document describes a cross-platform Dock Mode for AIRI that keeps an AIRI o
 ### Platform Strategy
 #### Windows prerequisites
 - Visual Studio 2022 Build Tools with Desktop C++ + Windows 10/11 SDK.
-- Rust MSVC target: `rustup target add x86_64-pc-windows-msvc` (required for `@proj-airi/native-window-win32` during install/prepare).
+- Rust MSVC target: `rustup target add x86_64-pc-windows-msvc`. On Windows, the root `postinstall` needs it to build `@proj-airi/native-window-win32`. On other platforms, the `build` script of this package skips the native build.
 
 **macOS (Phase 1)**
 - Core Graphics polling: `CGWindowListCopyWindowInfo(optionOnScreenOnly|excludeDesktopElements)` to list; `optionOnScreenAboveWindow` for z-order check. Filter transient/system layers (layer > 0, tiny bounds, alpha ~0).

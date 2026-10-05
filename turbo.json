@@ -12,6 +12,10 @@
     "@proj-airi/electron-vueuse#build": {
       "dependsOn": ["@proj-airi/electron-eventa#build"],
       "outputs": ["dist/**"]
+    },
+    "@proj-airi/native-window-win32#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["*.node"]
     }
   }
 }
