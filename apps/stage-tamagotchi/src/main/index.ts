@@ -14,7 +14,6 @@ import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { Format, LogLevel, setGlobalFormat, setGlobalHookPostLog, setGlobalLogLevel, useLogg } from '@guiiai/logg'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { hasSelectedScreenCaptureSource, initScreenCaptureForMain } from '@proj-airi/electron-screen-capture/main'
-import { initWindowDockForMain } from '@proj-airi/electron-window-dock/main'
 import { app, ipcMain, protocol, session } from 'electron'
 import { noop } from 'es-toolkit'
 import { createLoggLogger, injeca, lifecycle } from 'injeca'
@@ -53,6 +52,7 @@ import { setupCaptionWindowManager } from './windows/caption'
 import { setupChatWindowManager } from './windows/chat'
 import { isDesktopOverlayEnabled, setupDesktopOverlayWindow } from './windows/desktop-overlay'
 import { setupDevtoolsWindow } from './windows/devtools'
+import { setupDockOverlayWindowManager } from './windows/dock-overlay'
 import { setupEditorWindowManager } from './windows/editor'
 import { setupInlayWindowReusable } from './windows/inlay'
 import { setupMainWindow } from './windows/main'
@@ -156,7 +156,6 @@ const shouldStartMainProcess = installSingleInstanceGuard({ app, getWindow: () =
 
 if (shouldStartMainProcess) {
   initScreenCaptureForMain()
-  initWindowDockForMain()
 }
 
 let fileLogger: FileLoggerHandle = nullFileLoggerHandle
@@ -349,6 +348,12 @@ app.whenReady().then(async () => {
     }),
   })
 
+  // Registers the Dock Mode handlers. The overlay window is created only when docking starts.
+  const dockOverlayWindow = injeca.provide('windows:dock-overlay', {
+    dependsOn: { serverChannel, i18n },
+    build: ({ dependsOn }) => setupDockOverlayWindowManager(dependsOn),
+  })
+
   const captionWindow = injeca.provide('windows:caption', {
     dependsOn: { mainWindow, serverChannel, i18n },
     build: async ({ dependsOn }) => setupCaptionWindowManager(dependsOn),
@@ -376,7 +381,7 @@ app.whenReady().then(async () => {
   }
 
   injeca.invoke({
-    dependsOn: { mainWindow, tray, serverChannel, airiHttpServer, godotStageManager, pluginHost, mcpStdioManager, onboardingWindow: onboardingWindowManager, widgetsWindow: widgetsManager, spotlightWindow, artistryConfig },
+    dependsOn: { mainWindow, tray, serverChannel, airiHttpServer, godotStageManager, pluginHost, mcpStdioManager, onboardingWindow: onboardingWindowManager, widgetsWindow: widgetsManager, spotlightWindow, artistryConfig, dockOverlayWindow },
     callback: async (deps) => {
       const { context } = createContext(ipcMain)
       setupComputerUse(context)

@@ -2,6 +2,12 @@ import type { Rectangle } from 'electron'
 
 import { defineInvokeEventa } from '@moeru/eventa'
 
+/**
+ * - `detached`: no session. A caller stopped Dock Mode, or it never started.
+ * - `companion`: the target is hidden or minimized. When the target is lost, the session also ends in this state.
+ * - `docking-attached-visible`: the overlay is on the target.
+ * - `docking-attached-hidden`: the session continues, but the target is fullscreen or not frontmost.
+ */
 export type DockModeState
   = | 'detached'
     | 'companion'
@@ -21,7 +27,6 @@ export interface DockViewport {
 
 export interface DockConfig {
   activeIntervalMs?: number
-  idleIntervalMs?: number
   hiddenIntervalMs?: number
   burstIntervalMs?: number
   burstTicks?: number
@@ -41,7 +46,6 @@ export interface DockConfig {
 
 export const defaultDockConfig: Required<DockConfig> = {
   activeIntervalMs: 80,
-  idleIntervalMs: 400,
   hiddenIntervalMs: 1000,
   burstIntervalMs: 40,
   burstTicks: 3,
@@ -77,6 +81,7 @@ export interface StartDockRequest {
 export interface DockDebugState {
   state: DockModeState
   targetId?: string
+  /** The delay before the next tick. It is 0 when no session runs. */
   pollIntervalMs: number
   lastReason?: string
   lastMeta?: WindowTargetSummary

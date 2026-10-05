@@ -1,7 +1,7 @@
 import type { BrowserWindow, Rectangle } from 'electron'
 
 import type { DockConfig, DockDebugState, DockModeState, DockViewport, WindowTargetSummary } from '..'
-import type { WindowTracker } from './window-tracker'
+import type { WindowMeta, WindowTracker } from './window-tracker'
 
 import process from 'node:process'
 
@@ -13,70 +13,147 @@ import { clamp } from 'es-toolkit/math'
 import { defaultDockConfig } from '..'
 import { getOverlayWindowIds } from './window-ids'
 
+/** The overlay window methods that the controller calls. A `BrowserWindow` has all of them. */
+export type OverlayWindow = Pick<
+  BrowserWindow,
+  'id' | 'destroy' | 'getNativeWindowHandle' | 'getTitle' | 'hide' | 'isDestroyed' | 'setAlwaysOnTop' | 'setBounds' | 'setIgnoreMouseEvents' | 'showInactive'
+>
+
 export interface DockControllerOptions {
-  overlayWindow: BrowserWindow
-  overlayIds?: string[]
+  /**
+   * Creates the overlay window. The controller calls it on the first `start()` of a session.
+   * The window must be hidden when the promise resolves.
+   */
+  createOverlayWindow: () => Promise<OverlayWindow>
   tracker: WindowTracker
-  config?: DockConfig
 }
 
 type NormalizedDockConfig = Required<DockConfig>
 
+interface Overlay {
+  window: OverlayWindow
+  /** Every ID under which a tracker can report the overlay. It exists only after the window exists. */
+  ids: Set<string>
+}
+
 /** Windows narrower or shorter than this (in DIP) are treated as tool/popup windows, not real occluders. */
 const MIN_REAL_WINDOW_DIMENSION = 60
 
+const log = useLogg('window-dock').useGlobalConfig()
+
+/**
+ * Keeps the overlay window on the target window, and shows it only when the target is visible.
+ *
+ * A session starts with `start()` and ends with `stop()`, `dispose()`, or a lost target.
+ * The overlay window exists only during a session, and the poll loop runs only during a session.
+ */
 export class DockController {
-  private readonly overlayWindow: BrowserWindow
-  private readonly overlayIdSet: Set<string>
+  private readonly createOverlayWindow: () => Promise<OverlayWindow>
   private readonly tracker: WindowTracker
-  private pollHandle?: NodeJS.Timeout
-  private destroyed = false
+  private overlay?: Overlay
+  private overlayCreation?: Promise<Overlay | undefined>
+  /**
+   * True from `start()` until the session ends. An overlay that is created after the
+   * session ended is destroyed at once, because `stop()` had no window to destroy.
+   */
+  private overlayWanted = false
+  /**
+   * Increases on each `start()` and at the end of each session.
+   * A tick keeps the value from when it was scheduled. After each await, it stops if the value changed.
+   */
+  private generation = 0
+  private pollHandle?: ReturnType<typeof setTimeout>
+  private disposed = false
   private state: DockModeState = 'detached'
   private targetId?: string
   private config: NormalizedDockConfig = { ...defaultDockConfig }
   private mouseEventsIgnored = false
   private burstTicksRemaining = 0
-  private overlayBaseline?: { visible: boolean, alwaysOnTop: boolean }
   private debugState: DockDebugState = {
     state: 'detached',
-    pollIntervalMs: defaultDockConfig.idleIntervalMs,
+    pollIntervalMs: 0,
     lastUpdatedAt: Date.now(),
   }
 
   constructor(options: DockControllerOptions) {
-    this.overlayWindow = options.overlayWindow
-    const overlayIds = options.overlayIds ?? getOverlayWindowIds({
-      electronId: this.overlayWindow.id,
-      nativeHandle: process.platform === 'win32' ? this.overlayWindow.getNativeWindowHandle() : undefined,
-    })
-    this.overlayIdSet = new Set(overlayIds)
+    this.createOverlayWindow = options.createOverlayWindow
     this.tracker = options.tracker
-    this.config = this.normalizeConfig(options.config ?? defaultDockConfig)
   }
 
-  start(targetId: string): DockDebugState {
-    if (this.isTargetOverlay(targetId)) {
-      this.saveDebugState({ lastReason: 'overlay-target-blocked' })
+  /** Lists the windows that can be a target. The overlay window is not in the list. */
+  async listTargets(): Promise<WindowTargetSummary[]> {
+    const windows = await this.tracker.listWindows()
+    const overlay = this.overlay
+    if (!overlay || overlay.window.isDestroyed()) {
+      return windows
+    }
+
+    const overlayTitle = overlay.window.getTitle()
+    return windows.filter((candidate) => {
+      if (overlay.ids.has(candidate.id)) {
+        return false
+      }
+      // NOTICE:
+      // The first Win32 version also dropped AIRI windows with the overlay title.
+      // No case where the ID filter misses the overlay is verified on Windows.
+      // Source: Dock Mode PR #979.
+      // Removal condition: a Windows test shows that the ID filter alone drops the overlay.
+      return !(candidate.ownerPid === process.pid && candidate.title === overlayTitle)
+    })
+  }
+
+  /**
+   * Docks the overlay to `targetId`. The first call of a session creates the overlay window.
+   * A call during a session changes the target. The overlay window stays.
+   */
+  async start(targetId: string): Promise<DockDebugState> {
+    if (this.disposed) {
       return this.getDebugState()
     }
-    if (!this.targetId) {
-      this.captureOverlayBaseline()
+
+    // The new value also stops a tick that is waiting for the tracker.
+    const generation = ++this.generation
+    this.overlayWanted = true
+
+    let overlay: Overlay | undefined
+    try {
+      overlay = await this.ensureOverlay()
     }
+    catch (error) {
+      if (generation === this.generation) {
+        this.endSession('detached', 'overlay-failed')
+      }
+      throw error
+    }
+
+    // A later `start()`, `stop()`, or `dispose()` ran during the overlay creation. That call sets the state.
+    if (generation !== this.generation || !overlay) {
+      return this.getDebugState()
+    }
+
+    if (overlay.ids.has(targetId)) {
+      this.saveDebugState({ lastReason: 'overlay-target-blocked' })
+      if (this.targetId) {
+        // The new generation stopped the loop of the current session. Start it again.
+        this.scheduleTick(this.debugState.pollIntervalMs)
+      }
+      else {
+        this.releaseOverlay()
+      }
+      return this.getDebugState()
+    }
+
     this.targetId = targetId
-    this.burstTicksRemaining = this.config.burstTicks ?? defaultDockConfig.burstTicks
-    this.saveDebugState({ targetId, lastReason: 'target-selected' })
-    this.ensureLoop()
+    this.state = 'docking-attached-hidden'
+    this.burstTicksRemaining = this.config.burstTicks
+    this.saveDebugState({ lastReason: 'target-selected', lastMeta: undefined, windowsAbove: undefined })
+    this.scheduleTick(0)
     return this.getDebugState()
   }
 
+  /** Ends the session. Stops the poll loop and destroys the overlay window. */
   stop(): DockDebugState {
-    this.targetId = undefined
-    this.state = 'detached'
-    this.burstTicksRemaining = 0
-    this.restoreMouseEvents()
-    this.restoreOverlayBaseline()
-    this.setNextInterval(this.config.idleIntervalMs ?? defaultDockConfig.idleIntervalMs)
-    this.saveDebugState({ lastReason: 'stopped' })
+    this.endSession('detached', 'stopped')
     return this.getDebugState()
   }
 
@@ -89,18 +166,14 @@ export class DockController {
     return { ...this.debugState }
   }
 
+  /** Ends the session. After this call, `start()` does nothing. */
   dispose(): void {
-    this.destroyed = true
-    if (this.pollHandle) {
-      clearTimeout(this.pollHandle)
-      this.pollHandle = undefined
-    }
-    this.restoreMouseEvents()
-    this.lowerOverlay()
+    this.disposed = true
+    this.endSession('detached', 'disposed')
   }
 
   private normalizeConfig(config: DockConfig): NormalizedDockConfig {
-    const merged = merge(defaultDockConfig, config) as NormalizedDockConfig
+    const merged = merge(defaultDockConfig, config)
     return {
       ...merged,
       viewport: this.normalizeViewport(merged.viewport),
@@ -133,127 +206,159 @@ export class DockController {
     return { left, right, top, bottom }
   }
 
-  private ensureLoop() {
-    if (this.pollHandle || this.destroyed) {
-      return
+  /** Returns the overlay of the session. Concurrent calls share one creation. */
+  private async ensureOverlay(): Promise<Overlay | undefined> {
+    if (this.overlay && !this.overlay.window.isDestroyed()) {
+      return this.overlay
     }
-    this.scheduleNextTick(this.config.idleIntervalMs ?? defaultDockConfig.idleIntervalMs)
+
+    this.overlayCreation ??= this.createOverlay().finally(() => {
+      this.overlayCreation = undefined
+    })
+    return this.overlayCreation
   }
 
-  private scheduleNextTick(interval: number) {
-    if (this.destroyed) {
-      return
+  private async createOverlay(): Promise<Overlay | undefined> {
+    const window = await this.createOverlayWindow()
+    if (!this.overlayWanted) {
+      window.destroy()
+      return undefined
     }
+
+    this.overlay = {
+      window,
+      ids: new Set(getOverlayWindowIds({ electronId: window.id, nativeHandle: window.getNativeWindowHandle() })),
+    }
+    this.mouseEventsIgnored = false
+    return this.overlay
+  }
+
+  private releaseOverlay() {
+    this.overlayWanted = false
+    const overlay = this.overlay
+    this.overlay = undefined
+    this.mouseEventsIgnored = false
+    if (overlay && !overlay.window.isDestroyed()) {
+      overlay.window.destroy()
+    }
+  }
+
+  /**
+   * Ends the session: no target, no poll loop, no overlay window.
+   * `companion` means that the target was lost. `detached` means that a caller ended the session.
+   */
+  private endSession(state: 'detached' | 'companion', lastReason: string) {
+    this.generation++
+    this.clearTimer()
+    this.releaseOverlay()
+    this.targetId = undefined
+    this.state = state
+    this.burstTicksRemaining = 0
+    this.saveDebugState({
+      lastReason,
+      lastMeta: undefined,
+      windowsAbove: undefined,
+      pollIntervalMs: 0,
+      lastUpdatedAt: Date.now(),
+    })
+  }
+
+  private clearTimer() {
     if (this.pollHandle) {
       clearTimeout(this.pollHandle)
+      this.pollHandle = undefined
     }
+  }
+
+  private scheduleTick(delayMs: number) {
+    this.clearTimer()
+    const generation = this.generation
     this.pollHandle = setTimeout(() => {
       this.pollHandle = undefined
-      this.tick().catch((err) => {
-        useLogg('window-dock').useGlobalConfig().withError(err).error('tick failed')
-      }).finally(() => {
-        this.scheduleNextTick(this.debugState.pollIntervalMs)
-      })
-    }, interval)
+      void this.runTick(generation)
+    }, delayMs)
   }
 
-  private setNextInterval(interval: number) {
-    this.debugState.pollIntervalMs = interval
+  private async runTick(generation: number) {
+    try {
+      await this.tick(generation)
+    }
+    catch (error) {
+      log.withError(error).error('tick failed')
+    }
+
+    // A start, a stop, a lost target, or dispose during the tick changed the generation. That call owns the loop now.
+    if (generation === this.generation && this.targetId) {
+      this.scheduleTick(this.debugState.pollIntervalMs)
+    }
   }
 
-  private async tick() {
-    const now = Date.now()
-
-    if (!this.targetId) {
-      this.state = 'detached'
-      this.restoreMouseEvents()
-      this.restoreOverlayBaseline()
-      this.setNextInterval(this.config.idleIntervalMs ?? defaultDockConfig.idleIntervalMs)
-      this.saveDebugState({ lastReason: 'no-target', lastUpdatedAt: now })
+  private async tick(generation: number) {
+    const targetId = this.targetId
+    const overlay = this.overlay
+    if (!targetId || !overlay) {
       return
     }
 
-    const targetIsOverlay = this.isTargetOverlay(this.targetId)
-    const meta = await this.tracker.getWindowMeta(this.targetId)
+    const meta = await this.tracker.getWindowMeta(targetId)
+    if (generation !== this.generation) {
+      return
+    }
+
     if (!meta) {
-      this.state = 'companion'
-      this.targetId = undefined
-      this.burstTicksRemaining = 0
-      this.restoreMouseEvents()
-      this.restoreOverlayBaseline()
-      this.setNextInterval(this.config.idleIntervalMs ?? defaultDockConfig.idleIntervalMs)
-      this.saveDebugState({ lastReason: 'target-missing', targetId: undefined, lastMeta: undefined, lastUpdatedAt: now })
+      this.endSession('companion', 'target-missing')
       return
     }
 
-    const displayBounds = meta.displayBounds ?? this.inferDisplayBounds(meta.bounds)
-    const isFullscreen = this.isFullscreen(meta, displayBounds)
-    const realAbove = (await this.tracker.getWindowsAbove(meta.id)).filter(candidate => this.isRealWindow(candidate, displayBounds))
-    const isFrontmost = realAbove.length === 0
-    const allowNonFrontmostVisibility = (this.config.showWhenNotFrontmost ?? defaultDockConfig.showWhenNotFrontmost)
-      || !(this.config.hideWhenInactive ?? defaultDockConfig.hideWhenInactive)
-
+    const now = Date.now()
     if (!meta.isOnScreen || meta.isMinimized) {
       this.state = 'companion'
-      this.restoreMouseEvents()
-      if (targetIsOverlay) {
-        this.restoreOverlayBaseline()
-      }
-      else {
-        this.hideOverlay(true)
-        this.lowerOverlay()
-      }
-      this.setNextInterval(this.config.hiddenIntervalMs ?? defaultDockConfig.hiddenIntervalMs)
-      this.saveDebugState({ lastReason: 'target-hidden', lastMeta: meta, lastUpdatedAt: now })
+      this.hideOverlay(overlay)
+      this.saveDebugState({ lastReason: 'target-hidden', lastMeta: meta, pollIntervalMs: this.config.hiddenIntervalMs, lastUpdatedAt: now })
       return
     }
 
-    if (isFullscreen) {
-      this.state = 'docking-attached-hidden'
-      this.hideOverlay(true)
-      this.lowerOverlay()
-      this.setNextInterval(this.config.hiddenIntervalMs ?? defaultDockConfig.hiddenIntervalMs)
-      this.saveDebugState({
-        lastReason: 'target-fullscreen',
-        lastMeta: meta,
-        windowsAbove: realAbove.length,
-        lastUpdatedAt: now,
-      })
+    const displayBounds = meta.displayBounds ?? screen.getDisplayMatching(meta.bounds).bounds
+    const above = await this.tracker.getWindowsAbove(meta.id)
+    if (generation !== this.generation) {
       return
     }
 
-    if (!isFrontmost && !allowNonFrontmostVisibility) {
+    const windowsAbove = above.filter(candidate => this.isRealWindow(candidate, overlay)).length
+    if (this.isFullscreen(meta, displayBounds)) {
       this.state = 'docking-attached-hidden'
-      this.hideOverlay()
-      this.lowerOverlay()
-      this.setNextInterval(this.config.hiddenIntervalMs ?? defaultDockConfig.hiddenIntervalMs)
-      this.saveDebugState({
-        lastReason: 'not-frontmost',
-        lastMeta: meta,
-        windowsAbove: realAbove.length,
-        lastUpdatedAt: now,
-      })
+      this.hideOverlay(overlay)
+      this.saveDebugState({ lastReason: 'target-fullscreen', lastMeta: meta, windowsAbove, pollIntervalMs: this.config.hiddenIntervalMs, lastUpdatedAt: now })
+      return
+    }
+
+    const isFrontmost = windowsAbove === 0
+    const showWhenNotFrontmost = this.config.showWhenNotFrontmost || !this.config.hideWhenInactive
+    if (!isFrontmost && !showWhenNotFrontmost) {
+      this.state = 'docking-attached-hidden'
+      this.hideOverlay(overlay)
+      this.saveDebugState({ lastReason: 'not-frontmost', lastMeta: meta, windowsAbove, pollIntervalMs: this.config.hiddenIntervalMs, lastUpdatedAt: now })
       return
     }
 
     const becameVisible = this.state !== 'docking-attached-visible'
     const boundsChanged = this.debugState.lastMeta ? !this.areBoundsEqual(this.debugState.lastMeta.bounds, meta.bounds) : true
     if (becameVisible || boundsChanged) {
-      this.burstTicksRemaining = this.config.burstTicks ?? defaultDockConfig.burstTicks
+      this.burstTicksRemaining = this.config.burstTicks
     }
 
     this.state = 'docking-attached-visible'
-    this.syncOverlay(meta.bounds)
+    this.showOverlay(overlay, meta.bounds)
 
     const burstActive = this.burstTicksRemaining > 0
-    this.setNextInterval(burstActive ? (this.config.burstIntervalMs ?? defaultDockConfig.burstIntervalMs) : (this.config.activeIntervalMs ?? defaultDockConfig.activeIntervalMs))
     if (burstActive) {
       this.burstTicksRemaining -= 1
     }
     this.saveDebugState({
       lastReason: isFrontmost ? 'visible' : 'visible-not-frontmost',
       lastMeta: meta,
-      windowsAbove: realAbove.length,
+      windowsAbove,
+      pollIntervalMs: burstActive ? this.config.burstIntervalMs : this.config.activeIntervalMs,
       lastUpdatedAt: now,
     })
   }
@@ -267,21 +372,16 @@ export class DockController {
     }
   }
 
-  private inferDisplayBounds(bounds: Rectangle | undefined): Rectangle | undefined {
-    if (!bounds) {
-      return undefined
-    }
-    return screen.getDisplayMatching(bounds).bounds
-  }
-
-  private isFullscreen(meta: WindowTargetSummary, displayBounds?: Rectangle): boolean {
+  private isFullscreen(meta: WindowTargetSummary, displayBounds: Rectangle): boolean {
     if (typeof meta.isFullscreen === 'boolean') {
       return meta.isFullscreen
     }
-    if (!displayBounds) {
-      return false
-    }
     const { bounds } = meta
+    // NOTICE:
+    // The Win32 tracker sets no `isFullscreen`, so the controller compares the target bounds with the display bounds.
+    // A tolerance of 6 DIP accepts border and rounding differences. Their size is not verified on Windows.
+    // Source: `toWindowMeta` in `native/windows.ts`.
+    // Removal condition: every tracker sets `isFullscreen`.
     const delta = 6
     const matchesX = Math.abs(bounds.x - displayBounds.x) <= delta
     const matchesY = Math.abs(bounds.y - displayBounds.y) <= delta
@@ -290,15 +390,12 @@ export class DockController {
     return matchesX && matchesY && matchesW && matchesH
   }
 
-  private isRealWindow(meta: WindowTargetSummary, displayBounds?: Rectangle): boolean {
-    if (this.isTargetOverlay(meta.id)) {
+  private isRealWindow(meta: WindowMeta, overlay: Overlay): boolean {
+    if (overlay.ids.has(meta.id)) {
       return false
     }
     if (meta.isMinimized || meta.isOnScreen === false) {
       return false
-    }
-    if (!displayBounds) {
-      return true
     }
     const tooSmall = meta.bounds.width < MIN_REAL_WINDOW_DIMENSION || meta.bounds.height < MIN_REAL_WINDOW_DIMENSION
     const farOutside = meta.bounds.width === 0 || meta.bounds.height === 0
@@ -311,7 +408,7 @@ export class DockController {
   }
 
   private applyViewport(bounds: Rectangle): Rectangle {
-    const viewport = this.config.viewport ?? defaultDockConfig.viewport
+    const { viewport } = this.config
     const width = Math.max(0, bounds.width)
     const height = Math.max(0, bounds.height)
     const left = bounds.x + width * viewport.left
@@ -328,7 +425,7 @@ export class DockController {
   }
 
   private applyPadding(bounds: Rectangle): Rectangle {
-    const padding = this.config.padding ?? 0
+    const { padding } = this.config
     if (!padding) {
       return bounds
     }
@@ -340,103 +437,34 @@ export class DockController {
     }
   }
 
-  private syncOverlay(bounds: Rectangle) {
-    if (this.overlayWindow.isDestroyed()) {
+  private showOverlay(overlay: Overlay, targetBounds: Rectangle) {
+    if (overlay.window.isDestroyed()) {
       return
     }
 
-    const viewportBounds = this.applyViewport(bounds)
-    const paddedBounds = this.applyPadding(viewportBounds)
-
-    this.overlayWindow.setBounds(paddedBounds, false)
-    this.overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1)
-    if ('showInactive' in this.overlayWindow && typeof this.overlayWindow.showInactive === 'function') {
-      this.overlayWindow.showInactive()
-    }
-    else {
-      this.overlayWindow.show()
-    }
-
-    this.syncMouseEvents()
+    overlay.window.setBounds(this.applyPadding(this.applyViewport(targetBounds)), false)
+    overlay.window.setAlwaysOnTop(true, 'screen-saver', 1)
+    overlay.window.showInactive()
+    this.syncMouseEvents(overlay)
   }
 
-  private hideOverlay(force = false) {
-    if (this.overlayWindow.isDestroyed()) {
+  private hideOverlay(overlay: Overlay) {
+    if (overlay.window.isDestroyed()) {
       return
     }
-    if (this.isTargetOverlay(this.targetId)) {
-      return
-    }
-    if (!force && !(this.config.hideWhenInactive ?? defaultDockConfig.hideWhenInactive)) {
-      return
-    }
-    this.overlayWindow.hide()
+    overlay.window.hide()
+    overlay.window.setAlwaysOnTop(false)
   }
 
-  private restoreMouseEvents() {
-    if (this.overlayWindow.isDestroyed()) {
-      return
-    }
-    this.overlayWindow.setIgnoreMouseEvents(false)
-    this.mouseEventsIgnored = false
-  }
-
-  private syncMouseEvents() {
-    if (this.overlayWindow.isDestroyed()) {
-      return
-    }
-    const shouldIgnore = this.config.clickThrough ?? defaultDockConfig.clickThrough
+  private syncMouseEvents(overlay: Overlay) {
+    const shouldIgnore = this.config.clickThrough
     if (shouldIgnore && !this.mouseEventsIgnored) {
-      this.overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+      overlay.window.setIgnoreMouseEvents(true, { forward: true })
       this.mouseEventsIgnored = true
     }
     if (!shouldIgnore && this.mouseEventsIgnored) {
-      this.overlayWindow.setIgnoreMouseEvents(false)
+      overlay.window.setIgnoreMouseEvents(false)
       this.mouseEventsIgnored = false
     }
-  }
-
-  private lowerOverlay() {
-    if (this.overlayWindow.isDestroyed()) {
-      return
-    }
-    this.overlayWindow.setAlwaysOnTop(false)
-  }
-
-  private captureOverlayBaseline() {
-    if (this.overlayWindow.isDestroyed()) {
-      return
-    }
-    this.overlayBaseline = {
-      visible: this.overlayWindow.isVisible(),
-      alwaysOnTop: this.overlayWindow.isAlwaysOnTop(),
-    }
-  }
-
-  private restoreOverlayBaseline() {
-    if (!this.overlayBaseline || this.overlayWindow.isDestroyed()) {
-      return
-    }
-
-    if (this.overlayBaseline.visible) {
-      if ('showInactive' in this.overlayWindow && typeof this.overlayWindow.showInactive === 'function') {
-        this.overlayWindow.showInactive()
-      }
-      else {
-        this.overlayWindow.show()
-      }
-    }
-    else {
-      this.overlayWindow.hide()
-    }
-
-    this.overlayWindow.setAlwaysOnTop(this.overlayBaseline.alwaysOnTop)
-  }
-
-  private isTargetOverlay(targetId?: string): boolean {
-    if (!targetId) {
-      return false
-    }
-    return this.overlayIdSet.has(targetId)
   }
 }

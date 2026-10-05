@@ -444,19 +444,6 @@ onBeforeUnmount(() => {
               >
             </label>
             <label :class="['flex', 'flex-col', 'gap-1']">
-              <span :class="['text-2xs', 'text-neutral-500']">Idle (ms)</span>
-              <input
-                v-model.number="config.idleIntervalMs"
-                type="number"
-                min="50"
-                step="10"
-                :class="[
-                  'rounded-lg', 'border', 'border-neutral-300/70', 'bg-white/80', 'px-3', 'py-2',
-                  'dark:border-neutral-700', 'dark:bg-neutral-950/60',
-                ]"
-              >
-            </label>
-            <label :class="['flex', 'flex-col', 'gap-1']">
               <span :class="['text-2xs', 'text-neutral-500']">Hidden (ms)</span>
               <input
                 v-model.number="config.hiddenIntervalMs"

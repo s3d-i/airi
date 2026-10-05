@@ -22,7 +22,6 @@ import { is } from '@electron-toolkit/utils'
 import { defineInvokeHandler } from '@moeru/eventa'
 import { createContext } from '@moeru/eventa/adapters/electron/main'
 import { initScreenCaptureForWindow } from '@proj-airi/electron-screen-capture/main'
-import { initWindowDockForWindow } from '@proj-airi/electron-window-dock/main'
 import { defu } from 'defu'
 import { BrowserWindow, ipcMain } from 'electron'
 import { isLinux, isMacOS } from 'std-env'
@@ -35,7 +34,6 @@ import { onAppBeforeQuit } from '../../libs/bootkit/lifecycle'
 import { baseUrl, getElectronMainDirname, load, withHashRoute } from '../../libs/electron/location'
 import { createConfig } from '../../libs/electron/persistence'
 import { protectPrivilegedWindowNavigation, setWindowAlwaysOnTop, transparentWindowConfig } from '../shared'
-import { setupBaseWindowElectronInvokes } from '../shared/window'
 import { setupMainWindowElectronInvokes } from './rpc/index.electron'
 
 const appConfigSchema = object({
@@ -50,36 +48,6 @@ const appConfigSchema = object({
 })
 
 type AppConfig = InferOutput<typeof appConfigSchema>
-
-function createDockOverlayWindow(preloadPath: string) {
-  const overlayWindow = new BrowserWindow({
-    title: 'AIRI Dock Overlay',
-    width: 450,
-    height: 600,
-    show: false,
-    focusable: false,
-    resizable: false,
-    movable: false,
-    skipTaskbar: true,
-    icon,
-    webPreferences: {
-      preload: preloadPath,
-      sandbox: false,
-    },
-    type: 'panel',
-    ...transparentWindowConfig(),
-  })
-
-  overlayWindow.setFullScreenable(false)
-  overlayWindow.setVisibleOnAllWorkspaces(true)
-  if (isMacOS) {
-    overlayWindow.setWindowButtonVisibility(false)
-  }
-
-  protectPrivilegedWindowNavigation(overlayWindow)
-
-  return overlayWindow
-}
 
 export async function setupMainWindow(params: {
   editorWindow: EditorWindowManager
@@ -109,23 +77,6 @@ export async function setupMainWindow(params: {
   setupConfig()
 
   const mainWindowConfig = getConfig().windows?.find(w => w.title === 'AIRI' && w.tag === 'main')
-  const rendererRoot = resolve(getElectronMainDirname(), '..', 'renderer')
-  const dockOverlayBase = withHashRoute(baseUrl(rendererRoot, 'dock-overlay.html'), '/', {
-    query: { 'synced-leader': 'false' },
-  })
-  const preloadPath = join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs')
-  const dockOverlayWindow = createDockOverlayWindow(preloadPath)
-  const { context: dockOverlayContext } = createContext(ipcMain, dockOverlayWindow)
-
-  // Register IPC services for the overlay so renderer hooks receive mouse/bounds streams.
-  // The renderer loops of these services pause while the overlay is hidden and resume when Dock Mode shows it.
-  await setupBaseWindowElectronInvokes({ context: dockOverlayContext, window: dockOverlayWindow, serverChannel: params.serverChannel, i18n: params.i18n })
-
-  // The overlay page loads only after its invoke handlers exist, because the overlay renderer invokes them at startup.
-  // The main window setup does not wait for this load. The overlay stays hidden until Dock Mode starts.
-  load(dockOverlayWindow, dockOverlayBase).catch((error) => {
-    console.error('failed to load dock overlay window:', error)
-  })
 
   const window = new BrowserWindow({
     title: 'AIRI',
@@ -136,7 +87,7 @@ export async function setupMainWindow(params: {
     show: false,
     icon,
     webPreferences: {
-      preload: preloadPath,
+      preload: join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs'),
       sandbox: false,
     },
     // Thanks to [@HeartArmy](https://github.com/HeartArmy) for the tip implementation.
@@ -277,13 +228,6 @@ export async function setupMainWindow(params: {
   }
 
   initScreenCaptureForWindow(window)
-  initWindowDockForWindow(window, { overlayWindow: dockOverlayWindow })
-
-  window.on('closed', () => {
-    if (!dockOverlayWindow.isDestroyed()) {
-      dockOverlayWindow.destroy()
-    }
-  })
 
   return window
 }
