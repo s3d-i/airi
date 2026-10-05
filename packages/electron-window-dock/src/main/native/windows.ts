@@ -27,11 +27,13 @@ type Win32Bindings = typeof import('@proj-airi/native-window-win32')
 
 const LIST_OPTS: BindingQueryOptions = { includeOwnerPid: true, includeTitle: true }
 const LIGHT_OPTS: BindingQueryOptions = { includeOwnerPid: false, includeTitle: false }
+/** The z-order walk reads the owner PID, so that the tracker can drop the windows of this process. */
+const ABOVE_OPTS: BindingQueryOptions = { includeOwnerPid: true, includeTitle: false }
 /**
- * The z-order walk reads the owner PID, so that the tracker can drop the windows of this process.
- * It reads the title for the debug log of the windows above the target.
+ * The debug log reads the titles of the windows above the target only when its window list changes.
+ * Thus the poll loop does not read titles on each tick.
  */
-const ABOVE_OPTS: BindingQueryOptions = { includeOwnerPid: true, includeTitle: true }
+const TITLE_OPTS: BindingQueryOptions = { includeOwnerPid: false, includeTitle: true }
 
 function loadNativeBindings(): Win32Bindings | undefined {
   if (process.platform !== 'win32')
@@ -131,8 +133,8 @@ class Win32WindowTracker implements WindowTracker {
   }
 
   /**
-   * Returns the windows above the target in z-order. The windows of this process, for example the overlay
-   * and the main window, are not in the result, because they do not cover the target for Dock Mode.
+   * Returns the windows above the target in z-order. The windows of this process are not in the result.
+   * Thus AIRI windows, for example the overlay and the main window, do not cover the target for Dock Mode.
    *
    * If the target is the foreground window, the result is empty, and the controller counts the target as frontmost.
    * This also ignores every other window that the walk reports above a foreground target.
@@ -156,7 +158,7 @@ class Win32WindowTracker implements WindowTracker {
       // Source: commit a7c95d1e2, which subtracted one window in `controller.ts`.
       // Removal condition: on Windows, the debug log shows no window above a foreground target.
       const isForeground = bindings.getForegroundWindow(LIGHT_OPTS)?.id === windowId
-      this.logWindowsAbove(windowId, above, isForeground)
+      this.logWindowsAbove(bindings, windowId, above, isForeground)
       return isForeground ? [] : toWindowMetas(above)
     }
     catch (err) {
@@ -167,10 +169,11 @@ class Win32WindowTracker implements WindowTracker {
 
   /**
    * Logs the owner PID, the title, and the extended window style of each window above the target, at debug level.
+   * The list has only the windows of other processes, because the own-process filter runs first.
    * A Windows tester can use this log to find the extra window of the NOTICE in `getWindowsAbove`.
    * The poll loop calls the walk each tick, so the log repeats only when the target, the foreground result, or the window list changes.
    */
-  private logWindowsAbove(targetId: string, above: BindingWindowInfo[], isForeground: boolean) {
+  private logWindowsAbove(bindings: Win32Bindings, targetId: string, above: BindingWindowInfo[], isForeground: boolean) {
     const key = [targetId, isForeground, ...above.map(window => window.id)].join(' ')
     if (key === this.lastAboveLogKey)
       return
@@ -182,7 +185,7 @@ class Win32WindowTracker implements WindowTracker {
       windows: above.map(window => ({
         id: window.id,
         ownerPid: window.ownerPid,
-        title: window.title,
+        title: bindings.getWindow(window.id, TITLE_OPTS)?.title,
         exStyle: `0x${window.exStyle.toString(16)}`,
       })),
     }).debug(isForeground ? 'ignored the windows above the foreground target' : 'windows above the target')
