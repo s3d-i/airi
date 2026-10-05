@@ -1,15 +1,135 @@
 # @proj-airi/electron-window-dock
 
-Early scaffolding for AIRI Dock Mode. Provides:
+Dock Mode for the AIRI Electron app. It keeps an AIRI overlay window on a target window that the user selects.
 
-- Main-side dock controller with visibility contract (frontmost + non-fullscreen).
-- Platform tracker abstraction (currently Electron-window fallback stubs).
-- Renderer/Vue IPC helpers for devtools and feature UI.
+## What it does
 
-Usage:
+- Polls the bounds and the z-order of the target window in the Electron main process.
+- Moves a transparent overlay window onto the target, or onto a rect inside the target.
+- Hides the overlay when the target is hidden, minimized, fullscreen, or not frontmost.
+- Creates the overlay window on the first start of a session, and destroys it when the session ends.
+- Gives Eventa contracts (`windowDock`) to list the targets, start, stop, read the debug state, and set the config.
 
-1. Call `initWindowDockForMain()` in Electron main before creating windows.
-2. Call `initWindowDockForWindow(mainWindow)` after creating the AIRI window to register IPC handlers and start the controller.
-3. From renderer, use `useElectronWindowDock(ipcRenderer)` to list targets, start/stop dock, and read debug state.
+It moves only the AIRI overlay. It does not move or reparent the windows of other apps.
 
-Platform-native probes (Core Graphics/AX on macOS, Win32 on Windows) are intentionally stubbed; see `docs/dock-mode.md` for the plan and references.
+### Platforms
+
+| Platform | Tracker | Windows that the tracker sees |
+| --- | --- | --- |
+| Windows | `@proj-airi/native-window-win32` | All top-level windows, with z-order and owner PID. If the binding does not load, the tracker uses the Electron-only fallback. |
+| macOS | Electron-only fallback | Only the windows of AIRI. On macOS, Dock Mode can dock only to an AIRI window. |
+| Linux | None | No windows. The target list is empty. |
+
+See [`docs/dock-mode.md`](../../docs/dock-mode.md) for the visibility rules of each tracker.
+
+## How to use
+
+In the main process, call `setupWindowDock` one time. Give it a function that creates the overlay window.
+
+```ts
+import { setupWindowDock } from '@proj-airi/electron-window-dock/main'
+
+const windowDock = setupWindowDock({
+  // Return a hidden, transparent, not focusable window. Load its page before you return it.
+  createOverlayWindow: async () => createOverlayWindow(),
+})
+
+// On app quit, end the session and remove the IPC handlers.
+app.on('before-quit', () => windowDock.dispose())
+```
+
+In a renderer, call the `windowDock` contracts through the shared Eventa context.
+
+```ts
+import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
+import { windowDock } from '@proj-airi/electron-window-dock'
+
+const listTargets = useElectronEventaInvoke(windowDock.listTargets)
+const startDock = useElectronEventaInvoke(windowDock.start)
+const stopDock = useElectronEventaInvoke(windowDock.stop)
+
+const [target] = await listTargets()
+await startDock({ targetId: target.id })
+await stopDock()
+```
+
+In AIRI, `apps/stage-tamagotchi/src/main/windows/dock-overlay/` gives the overlay window. The devtools page `/devtools/window-dock` is the UI.
+
+## API
+
+### `@proj-airi/electron-window-dock/main`
+
+| Export | Description |
+| --- | --- |
+| `setupWindowDock(options)` | Creates the dock controller and registers the `windowDock` invoke handlers. Returns a `WindowDock`. |
+| `WindowDockOptions.createOverlayWindow` | `() => Promise<BrowserWindow>`. Dock Mode calls it on the first start of a session. |
+| `WindowDock.dispose()` | Removes the handlers, ends the session, and destroys the overlay window. |
+
+The handlers use an Eventa context without a window. Any renderer can call them, and the reply goes to the caller.
+
+### `@proj-airi/electron-window-dock`
+
+| Contract | Request | Response |
+| --- | --- | --- |
+| `windowDock.listTargets` | None | `WindowTargetSummary[]`. The overlay window is not in the list. |
+| `windowDock.start` | `{ targetId }` | `DockDebugState`. Starts a session, or changes the target of the current session. |
+| `windowDock.stop` | None | `DockDebugState`. Ends the session and destroys the overlay window. |
+| `windowDock.getDebugState` | None | `DockDebugState` |
+| `windowDock.setConfig` | `DockConfig`, any subset of the fields | `DockDebugState`. Rejects an update with a value outside the limits. |
+
+The entry also exports `defaultDockConfig` and the types `DockConfig`, `DockViewport`, `DockDebugState`, `DockModeState`, and `WindowTargetSummary`.
+
+### Config
+
+The main process validates each update with Valibot. An invalid update throws, and the current config stays.
+
+| Field | Default | Limits | Effect |
+| --- | --- | --- | --- |
+| `activeIntervalMs` | `80` | 16 to 60000 | The poll interval while the overlay is visible. |
+| `hiddenIntervalMs` | `1000` | 100 to 60000 | The poll interval while the target is hidden, fullscreen, or not frontmost. |
+| `burstIntervalMs` | `40` | 16 to 60000 | The poll interval after the overlay shows or the target moves. |
+| `burstTicks` | `3` | Integer, 0 to 100 | The number of ticks at `burstIntervalMs`. |
+| `clickThrough` | `true` | | If `true`, mouse events go through the overlay. |
+| `padding` | `0` | 0 to 500 DIP | The space added on each side of the viewport rect. |
+| `hideWhenInactive` | `true` | | If `false`, the result is the same as `showWhenNotFrontmost: true`. |
+| `showWhenNotFrontmost` | `false` | | If `true`, the overlay also shows when other windows cover the target. |
+| `viewport` | `{ left: 0, right: 1, top: 0, bottom: 1 }` | Each edge 0 to 1, `left < right`, `top < bottom` | A rect inside the target, as fractions of the target size. |
+
+### Sessions and states
+
+| Event | Result |
+| --- | --- |
+| `start` without a session | Creates the overlay window, sets the target, and runs the first tick at once. |
+| `start` during a session | Changes the target. The overlay window stays. |
+| `stop` | Ends the session in `detached`. Polling stops, and the overlay window is destroyed. |
+| The tracker does not find the target | Ends the session in `companion` with the reason `target-missing`. |
+| `dispose` | Ends the session. After this, `start` does nothing. |
+
+| State | Meaning |
+| --- | --- |
+| `detached` | No session. |
+| `companion` | The target is hidden or minimized, and the session continues. A lost target also ends the session in this state. |
+| `docking-attached-visible` | The overlay is on the target. |
+| `docking-attached-hidden` | The target is fullscreen or not frontmost. The overlay is hidden. |
+
+## When to use
+
+- Use it in the AIRI Electron app to show AIRI on top of one window of another app on Windows.
+- Use it on macOS to show AIRI on top of another AIRI window.
+
+## When not to use
+
+- Do not use it on macOS to follow the windows of other apps. The macOS tracker sees only the windows of AIRI.
+- Do not use it on Linux. The tracker finds no windows there.
+- Do not import `./main` in a renderer. Renderers use only the contracts of the root entry.
+- Do not use it to move, resize, or reparent the windows of other apps.
+
+## Not verified on Windows
+
+The tests use a fake tracker. Nobody ran this version on Windows. These parts are not verified on Windows:
+
+- The Win32 tracker filters the windows of this process from the windows above the target.
+- The target list drops windows of this process that have the overlay title.
+- The fullscreen check accepts a difference of 6 DIP between the target bounds and the display bounds.
+- `screen.screenToDipRect` converts the rects of the binding to DIP.
+- Click-through with `setIgnoreMouseEvents(true, { forward: true })` on the overlay window.

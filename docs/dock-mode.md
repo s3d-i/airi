@@ -1,146 +1,149 @@
-## AIRI Dock Mode (Windows + macOS) — Design + PoC Plan
+## AIRI Dock Mode
 
-This document describes a cross-platform Dock Mode for AIRI that keeps an AIRI overlay window visually attached to a user-selected target window. The design favors transparency overlays and a strict visibility contract over reparenting. No private APIs are used.
+Dock Mode keeps an AIRI overlay window on a target window that the user selects. The overlay is a transparent, click-through window that AIRI owns. Dock Mode does not reparent the windows of other apps, and it uses no private APIs.
 
-### Goals and Scope
-- Opt-in Dock Mode that follows one explicit target window.
-- Overlay is AIRI-owned (transparent, borderless, click-through) that tracks target bounds; no foreign window reparenting.
-- Visibility contract: overlay only shows when target is the frontmost real window, not fullscreen, and is on-screen.
-- Degrade gracefully without macOS Accessibility permission; polling-based Core Graphics baseline, AX events as an additive optimization.
-- Platform parity for Windows + macOS with testable state machine and devtools.
+The API reference is in [`packages/electron-window-dock/README.md`](../packages/electron-window-dock/README.md).
 
-### Key References
+### Status
+
+- Package: `packages/electron-window-dock`.
+- App integration: `apps/stage-tamagotchi/src/main/windows/dock-overlay/`.
+- UI: the devtools page `/devtools/window-dock`, in Settings > System > Developer. There is no user setting yet.
+- Windows: a native window tracker. This version is not verified on Windows.
+- macOS: the Electron-only tracker. It sees only the windows of AIRI, so Dock Mode can dock only to an AIRI window.
+- Linux: no tracker. The target list is empty.
+
+### Architecture
+
+- `src/index.ts`: the Eventa contracts (`windowDock`), the shared types, and `defaultDockConfig`.
+- `src/main/controller.ts`: `DockController`. It owns the session, the overlay window, the poll loop, and the config.
+- `src/main/native/`: one window tracker for each platform. `native/index.ts` selects the tracker.
+- `src/main/index.ts`: `setupWindowDock`. It creates the controller and registers the invoke handlers.
+
+The app gives `createOverlayWindow` to `setupWindowDock`. This function does these steps:
+
+1. It creates a hidden, transparent, not focusable window. The window has `skipTaskbar` and shows on all workspaces. On macOS, its type is `panel`, the same as the main window.
+2. It creates an Eventa context with `onlySameWindow: true`, so the base handlers of the overlay hear only the overlay.
+3. It registers the base window handlers. Then it loads `dock-overlay.html#/dock-overlay` with `synced-leader=false`.
+
+### Overlay lifecycle
+
+- At app start, Dock Mode registers only the invoke handlers. No overlay window exists.
+- The first `start` of a session creates and loads the overlay window. The window stays hidden until a tick shows it.
+- `stop`, a lost target, and the app quit end the session. Each one stops the poll loop and destroys the overlay window.
+- A normal close of the main window only hides that window. Dock Mode does not depend on the main window, so the session continues.
+- The overlay renderer is a follower of the synchronized stores. It reads the stage model from `useSettingsStageModel`.
+- It reads the theme from `useSettingsTheme`. This store reads localStorage and follows its changes from other windows.
+
+### Visibility contract
+
+Each tick reads the target. Then it applies the first rule that matches:
+
+1. If the tracker does not find the target, the session ends in `companion`.
+2. If the target is hidden or minimized, the overlay hides. The state is `companion`, and polling continues.
+3. If the target is fullscreen, the overlay hides. The state is `docking-attached-hidden`.
+4. If a real window is above the target, the overlay hides. The state is `docking-attached-hidden`.
+5. In all other cases, the overlay moves to the viewport rect of the target. It goes always on top and shows without focus.
+
+Rule 4 does not apply when `showWhenNotFrontmost` is `true` or `hideWhenInactive` is `false`.
+
+A real window above the target is not the overlay, not minimized, and on screen. It is at least 60 by 60 DIP, and its layer is 0 or not set.
+
+A tracker can give a fullscreen flag. The Electron-only tracker gives it. The Win32 tracker gives no flag, so the controller compares the target bounds with the display bounds. A difference of up to 6 DIP on each value counts as a match.
+
+When `clickThrough` is `true`, the overlay calls `setIgnoreMouseEvents(true, { forward: true })`. Mouse events go through the overlay to the windows below it.
+
+### States
+
+| State | Meaning |
+| --- | --- |
+| `detached` | No session. A caller stopped Dock Mode, or it never started. |
+| `companion` | The target is hidden or minimized, and the session continues. A lost target also ends the session in this state. |
+| `docking-attached-visible` | The overlay is on the target. |
+| `docking-attached-hidden` | The target is fullscreen or not frontmost. The overlay is hidden. |
+
+### Polling
+
+- The poll loop runs only during a session. Without a target, nothing polls.
+- While the overlay is visible, the interval is `activeIntervalMs` (80 ms).
+- After the overlay shows or the target moves, `burstTicks` (3) ticks use `burstIntervalMs` (40 ms).
+- While the target is hidden, fullscreen, or not frontmost, the interval is `hiddenIntervalMs` (1000 ms).
+- A generation number increases on each `start` and at the end of each session. A tick that waited for the tracker stops if the number changed.
+- The main process validates each config update with Valibot. It rejects values outside the limits in the package README.
+
+### Platform trackers
+
+#### Windows
+
+- The tracker uses `listWindows`, `getWindow`, and `getWindowsAbove` of `@proj-airi/native-window-win32`.
+- It converts each rect from physical pixels to DIP with `screen.screenToDipRect`.
+- The z-order walk drops each window of this process. AIRI windows, for example the always-on-top main window, do not hide the overlay.
+- If the binding does not load, or a call fails, the tracker logs a warning and uses the Electron-only fallback.
+
+The binding is a native build. The `build` script of the binding skips the native build when `cargo --version` fails. Then the app has no binding, and Dock Mode uses the Electron-only fallback. For the build steps, the CI variable `AIRI_REQUIRE_NATIVE_WINDOW_WIN32`, and the packaging rules, see [`packages/native-window-win32/README.md`](../packages/native-window-win32/README.md).
+
+#### macOS
+
+- The tracker uses the Electron-only fallback. It lists `BrowserWindow.getAllWindows()`, that is, only the windows of AIRI.
+- The windows above the target are the focused AIRI window and the visible always-on-top AIRI windows.
+- If no AIRI window has focus, the fallback reports one window of display size above the target. Then the overlay hides when another app has focus.
+
+A native macOS tracker is not implemented. The plan is Core Graphics polling (`CGWindowListCopyWindowInfo`) and optional Accessibility events for move and resize.
+
+#### Linux
+
+There is no tracker. The target list is empty, and Dock Mode cannot start a useful session.
+
+### IPC API (Eventa)
+
+| Contract | Request | Response |
+| --- | --- | --- |
+| `windowDock.listTargets` | None | `WindowTargetSummary[]` without the overlay window |
+| `windowDock.start` | `{ targetId }` | `DockDebugState` |
+| `windowDock.stop` | None | `DockDebugState` |
+| `windowDock.getDebugState` | None | `DockDebugState` |
+| `windowDock.setConfig` | `DockConfig`, any subset | `DockDebugState`, or an error for an invalid value |
+
+The handlers use an Eventa context without a window. Any renderer can call them, and the reply goes to the caller.
+
+### Devtools page
+
+- Lists the targets, with an on-screen filter and an automatic refresh.
+- Starts and stops Dock Mode, and shows the debug state: state, poll interval, reason, windows above, target, and last update.
+- Sets the poll intervals, the padding, click-through, the viewport, and the visibility options.
+- Uses the shared renderer Eventa context of `@proj-airi/electron-vueuse`.
+
+### Testing
+
+- `pnpm -F @proj-airi/electron-window-dock exec vitest run` runs the package tests.
+- The controller tests use a fake tracker, a fake overlay window, a mocked `electron.screen`, and fake timers.
+- No automated test runs a real tracker or a real overlay window.
+
+### Not verified on Windows
+
+Nobody ran this version on Windows. These parts are not verified on Windows:
+
+- The z-order walk filters the windows of this process. An older version subtracted one window above the target. The cause of that window is not verified on Windows.
+- The target list drops windows of this process that have the overlay title.
+- The fullscreen check accepts a difference of 6 DIP.
+- `screen.screenToDipRect` converts the rects of the binding to DIP.
+- Click-through on the overlay window.
+
+### Open items
+
+- A native macOS tracker with Core Graphics, and optional Accessibility events.
+- A user setting for Dock Mode outside the devtools page.
+- Automatic reattach after a lost target, and a saved last target.
+- Auto-hide when the cursor enters the overlay. This needs a global cursor hit test.
+
+### References
+
 - electron-overlay-window: <https://github.com/SnosMe/electron-overlay-window>
 - electron-overlay-window macOS support PR: <https://github.com/SnosMe/electron-overlay-window/pull/17>
 - electron-overlay-window macOS fullscreen issue: <https://github.com/SnosMe/electron-overlay-window/issues/37>
 - awakened-poe-trade macOS overlay PR: <https://github.com/SnosMe/awakened-poe-trade/pull/403>
-- Electron alwaysOnTop vs macOS fullscreen (wontfix): <https://github.com/electron/electron/issues/10078>
-- CoreGraphics window APIs: `CGWindowListCopyWindowInfo`, `optionOnScreenAboveWindow`, `optionOnScreenOnly`, `excludeDesktopElements`, keys `kCGWindowBounds`, `kCGWindowLayer`, `kCGWindowIsOnscreen`, `kCGWindowNumber`
+- Electron alwaysOnTop and macOS fullscreen (wontfix): <https://github.com/electron/electron/issues/10078>
+- Core Graphics window APIs: `CGWindowListCopyWindowInfo`, `optionOnScreenAboveWindow`, `optionOnScreenOnly`, `excludeDesktopElements`, and the keys `kCGWindowBounds`, `kCGWindowLayer`, `kCGWindowIsOnscreen`, `kCGWindowNumber`
 - Accessibility: `kAXMinimizedAttribute`, `kAXWindowMovedNotification`, `kAXWindowResizedNotification`
-- Apple forums (fullscreen limitations): <https://developer.apple.com/forums/thread/792917>
-- yabai AX event rate note: <https://github.com/koekeishiya/yabai/issues/279>
-
-### Architecture Overview
-- New workspace package `@proj-airi/electron-window-dock`
-  - `src/index.ts`: Eventa contracts and shared types.
-  - `src/main/`: DockController (state machine), platform WindowTracker abstraction, platform-native stubs, IPC handlers.
-  - `src/renderer.ts`: IPC client helpers for renderer.
-  - `src/vue/`: `useElectronWindowDock()` composable for Vue.
-- Integration in `apps/stage-tamagotchi`
-  - Main process: initialize dock module in `src/main/index.ts` and attach to main window (overlay).
-  - Devtools page: pick target window, start/stop dock, inspect debug state.
-
-### PoC Status (in repo)
-- `packages/electron-window-dock`: scaffolding with DockController, IPC wiring, and platform trackers currently using Electron-window fallbacks (no Core Graphics/Win32 probes yet). Configurable click-through/hide behavior to avoid trapping the main window while testing.
-- `apps/stage-tamagotchi`: dock init wired in main process; devtools page `/devtools/window-dock` for target selection, interval tuning, and debug snapshots.
-
-### Visibility Contract
-1) Target must be frontmost “real” window (no transient/system UI) → overlay visible.
-2) Target enters fullscreen Space → overlay hidden; on exit, reattach best-effort.
-3) Target not on-screen/minimized/closed → hide and fall back to Companion (non-follow) mode.
-4) Overlay input is click-through (`setIgnoreMouseEvents(true, { forward: true })`); optional cursor-enter auto-hide requires cursor hit test.
-5) Overlay never steals focus (`showInactive`, `type: 'panel'` on macOS).
-
-### State Machine (DockController)
-- `Detached`: no target, overlay idle/hidden.
-- `Companion`: fallback fixed position (current AIRI behavior).
-- `Docking:AttachedVisible`: target valid, frontmost, not fullscreen → overlay shown and aligned to bounds.
-- `Docking:AttachedHidden`: target selected but hidden/fullscreen/not-frontmost → overlay hidden; polling continues with lower frequency.
-- Transitions:
-  - `selectTarget -> Docking:AttachedHidden` (until visibility passes).
-  - `visibility ok -> Docking:AttachedVisible`.
-  - `target lost/closed -> Companion`.
-  - `explicit stop -> Detached` (clears target).
-
-### Platform Strategy
-#### Windows prerequisites
-- Visual Studio 2022 Build Tools with Desktop C++ + Windows 10/11 SDK.
-- Rust MSVC target: `rustup target add x86_64-pc-windows-msvc`. On Windows, the root `postinstall` needs it to build `@proj-airi/native-window-win32`. On other platforms, the `build` script of this package skips the native build.
-
-**macOS (Phase 1)**
-- Core Graphics polling: `CGWindowListCopyWindowInfo(optionOnScreenOnly|excludeDesktopElements)` to list; `optionOnScreenAboveWindow` for z-order check. Filter transient/system layers (layer > 0, tiny bounds, alpha ~0).
-- Frontmost heuristic: `probeAbove(targetId)` returns zero “real” windows.
-- Fullscreen heuristic: target bounds ~= active display bounds; `kCGWindowIsOnscreen` false ⇒ treat hidden/minimized.
-- Frontmost app pid: NSWorkspace via `activeSpace` helpers or AX when available.
-
-**macOS (Phase 2)**
-- Accessibility (opt-in): subscribe to `kAXWindowMovedNotification`, `kAXWindowResizedNotification`, `kAXMinimizedAttribute`, `AXFullScreen` when present. Use events to temporarily boost poll rate; keep polling as fallback for missed events.
-
-**Windows**
-- Win32 APIs (user32): `GetForegroundWindow`, `GetWindowRect`, `IsIconic`, `GetWindowPlacement`, `EnumWindows` + `GetWindow(GW_HWNDPREV)` for z-order probe.
-- Fullscreen heuristic: window bounds ~= monitor work area; `SW_SHOWMINIMIZED`/`IsIconic` → hidden.
-- Overlay uses layered window flags for click-through.
-
-### Polling and Performance
-- Adaptive polling:
-  - Active (recent changes or visible): 10–16 Hz.
-  - Idle/stable: back off to 2–4 Hz.
-  - Hidden/fullscreen: 1–2 Hz.
-- Burst acceleration: on detected move/resize/frontmost change, briefly poll at high rate then decay.
-- Work is async, no long sync loops in main process.
-
-### IPC and API Surface (Eventa)
-- `windowDock.listTargets` → `WindowTargetSummary[]` (onscreen, layer, title, pid, bounds).
-- `windowDock.startDock` → { ok, targetId } selects target and begins polling.
-- `windowDock.stopDock` → stops and returns to Companion/Detached.
-- `windowDock.getDebugState` → snapshot (state, target meta, above-count, poll rate, last transition reason).
-- `windowDock.setConfig` → optional tweaks (poll intervals, filters).
-
-### Pseudo Code (DockController)
-```ts
-function loop() {
-  if (!targetId) {
-    hideOverlay()
-    state = Detached
-    return
-  }
-  const meta = tracker.getWindowMeta(targetId)
-  if (!meta || !meta.isOnScreen) {
-    state = Companion
-    hideOverlay()
-    maybeFallback()
-    return
-  }
-
-  const above = tracker.probeZOrderAbove(targetId, filterRealWindows)
-  const isFrontmost = above.length === 0
-  const isFullscreen = fullscreenHeuristic(meta, displayBounds)
-
-  if (!isFrontmost || isFullscreen) {
-    state = DockingAttachedHidden
-    hideOverlay()
-    adjustPollInterval(hiddenInterval)
-    return
-  }
-
-  state = DockingAttachedVisible
-  adjustPollInterval(activeInterval)
-  overlay.setBounds(pad(meta.bounds, offsets))
-  overlay.showInactive()
-  overlay.setIgnoreMouseEvents(true, { forward: true })
-}
-```
-
-### Failure and Degrade Paths
-- Missing permissions (macOS AX) → log notice, stay on Core Graphics polling.
-- target not found for N cycles → auto-stop dock and switch to Companion; devtools shows “detached”.
-- fullscreen detection heuristic false positives → safe side: hide overlay.
-- Main-thread safety: all native probes wrapped in try/catch with timeouts; controller can pause polling on repeated failures.
-
-### Debugging and Devtools
-- Devtools page lists on-screen windows (filtered) with title/owner/layer.
-- Controls: start/stop dock, refresh targets, toggle visibility filters, show debug snapshot (state, poll interval, last meta, above count).
-- Metrics exposed via `getDebugState` and tick counters.
-
-### Testing
-- DockController unit tests use a mock `WindowTracker` that returns scripted sequences; assert state transitions for frontmost/fullscreen/minimize flows.
-- Heuristic helpers (frontmost filter, fullscreen check) are pure functions for direct tests.
-
-### Permissions (macOS)
-- Phase 1 works without Accessibility permission (uses CG polling).
-- Phase 2: prompt once for Accessibility; cache trust flag; keep working without it but log degraded accuracy.
-
-### Open Items (future)
-- Cursor-enter auto-hide implementation (requires global cursor hit test vs overlay bounds).
-- Platform-specific filters for transient windows (menus/tooltips) tuned with macOS QA.
-- Persist last target per app for quick reattach after fullscreen/Space switches.
+- Apple forums, fullscreen limits: <https://developer.apple.com/forums/thread/792917>
+- yabai, AX event rate: <https://github.com/koekeishiya/yabai/issues/279>
