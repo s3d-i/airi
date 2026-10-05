@@ -189,17 +189,7 @@ export class DockController {
     const displayBounds = meta.displayBounds ?? this.inferDisplayBounds(meta.bounds)
     const isFullscreen = this.isFullscreen(meta, displayBounds)
     const realAbove = (await this.tracker.getWindowsAbove(meta.id)).filter(candidate => this.isRealWindow(candidate, displayBounds))
-
-    // NOTICE:
-    // On Win32, the native z-order probe reports one extra window above the target, even when the target is frontmost.
-    // The code subtracts one only on win32. The Electron-only tracker on other platforms reports the count as it is.
-    // Root cause is not confirmed. The extra entry passes isRealWindow, so the filter above does not remove it.
-    // Source: windows_above in packages/native-window-win32/src/platform.rs, which walks GW_HWNDPREV up from the target.
-    // Removal condition: the native probe or isRealWindow drops the extra entry, and a frontmost target reports 0 windows above.
-    const adjustedAboveCount = process.platform === 'win32'
-      ? Math.max(0, realAbove.length - 1)
-      : realAbove.length
-    const isFrontmost = adjustedAboveCount === 0
+    const isFrontmost = realAbove.length === 0
     const allowNonFrontmostVisibility = (this.config.showWhenNotFrontmost ?? defaultDockConfig.showWhenNotFrontmost)
       || !(this.config.hideWhenInactive ?? defaultDockConfig.hideWhenInactive)
 
@@ -226,7 +216,7 @@ export class DockController {
       this.saveDebugState({
         lastReason: 'target-fullscreen',
         lastMeta: meta,
-        windowsAbove: adjustedAboveCount,
+        windowsAbove: realAbove.length,
         lastUpdatedAt: now,
       })
       return
@@ -240,7 +230,7 @@ export class DockController {
       this.saveDebugState({
         lastReason: 'not-frontmost',
         lastMeta: meta,
-        windowsAbove: adjustedAboveCount,
+        windowsAbove: realAbove.length,
         lastUpdatedAt: now,
       })
       return
@@ -263,7 +253,7 @@ export class DockController {
     this.saveDebugState({
       lastReason: isFrontmost ? 'visible' : 'visible-not-frontmost',
       lastMeta: meta,
-      windowsAbove: adjustedAboveCount,
+      windowsAbove: realAbove.length,
       lastUpdatedAt: now,
     })
   }

@@ -27,6 +27,8 @@ type Win32Bindings = typeof import('@proj-airi/native-window-win32')
 
 const LIST_OPTS: BindingQueryOptions = { includeOwnerPid: true, includeTitle: true }
 const LIGHT_OPTS: BindingQueryOptions = { includeOwnerPid: false, includeTitle: false }
+/** The z-order walk reads the owner PID, so that the tracker can drop the windows of this process. */
+const ABOVE_OPTS: BindingQueryOptions = { includeOwnerPid: true, includeTitle: false }
 
 function loadNativeBindings(): Win32Bindings | undefined {
   if (process.platform !== 'win32')
@@ -115,10 +117,14 @@ class Win32WindowTracker implements WindowTracker {
       return getWindowsAboveElectronTarget(windowId, await this.listWindows())
 
     try {
-      return toWindowMetas(this.bindings.getWindowsAbove(windowId, LIGHT_OPTS) ?? [])
+      // Dock Mode does not count AIRI windows, for example the overlay and the main window, as windows that cover the target.
+      // Before this filter, the controller subtracted one window, because a frontmost target reported one window above it.
+      // The cause of that extra window is not verified on Windows.
+      const above = this.bindings.getWindowsAbove(windowId, ABOVE_OPTS).filter(window => window.ownerPid !== process.pid)
+      return toWindowMetas(above)
     }
     catch (err) {
-      log.withError(err as Error).warn('Native z-order probe failed; falling back to Electron-only tracker')
+      log.withError(err).warn('Native z-order probe failed; falling back to Electron-only tracker')
       return getWindowsAboveElectronTarget(windowId, await this.listWindows())
     }
   }
