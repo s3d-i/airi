@@ -51,7 +51,7 @@ const appConfigSchema = object({
 
 type AppConfig = InferOutput<typeof appConfigSchema>
 
-function createDockOverlayWindow(overlayBase: Parameters<typeof load>[1], preloadPath: string) {
+function createDockOverlayWindow(preloadPath: string) {
   const overlayWindow = new BrowserWindow({
     title: 'AIRI Dock Overlay',
     width: 450,
@@ -77,11 +77,6 @@ function createDockOverlayWindow(overlayBase: Parameters<typeof load>[1], preloa
   }
 
   protectPrivilegedWindowNavigation(overlayWindow)
-
-  // Keep the overlay hidden until Dock Mode is started.
-  load(overlayWindow, overlayBase).catch((error) => {
-    console.error('failed to load dock overlay window:', error)
-  })
 
   return overlayWindow
 }
@@ -119,12 +114,18 @@ export async function setupMainWindow(params: {
     query: { 'synced-leader': 'false' },
   })
   const preloadPath = join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs')
-  const dockOverlayWindow = createDockOverlayWindow(dockOverlayBase, preloadPath)
+  const dockOverlayWindow = createDockOverlayWindow(preloadPath)
   const { context: dockOverlayContext } = createContext(ipcMain, dockOverlayWindow)
 
   // Register IPC services for the overlay so renderer hooks receive mouse/bounds streams.
   // The renderer loops of these services pause while the overlay is hidden and resume when Dock Mode shows it.
   await setupBaseWindowElectronInvokes({ context: dockOverlayContext, window: dockOverlayWindow, serverChannel: params.serverChannel, i18n: params.i18n })
+
+  // The overlay page loads only after its invoke handlers exist, because the overlay renderer invokes them at startup.
+  // The main window setup does not wait for this load. The overlay stays hidden until Dock Mode starts.
+  load(dockOverlayWindow, dockOverlayBase).catch((error) => {
+    console.error('failed to load dock overlay window:', error)
+  })
 
   const window = new BrowserWindow({
     title: 'AIRI',
