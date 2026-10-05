@@ -15,8 +15,8 @@ export type DockModeState
     | 'docking-attached-hidden'
 
 /**
- * Percent-based viewport inside the target window.
- * Values are normalized between 0 (start/top/left) and 1 (end/bottom/right).
+ * A rect inside the target window. Each edge is a fraction of the target width or height,
+ * from 0 (left or top) to 1 (right or bottom). `left` must be less than `right`, and `top` less than `bottom`.
  */
 export interface DockViewport {
   left: number
@@ -25,22 +25,30 @@ export interface DockViewport {
   bottom: number
 }
 
+/**
+ * Dock Mode settings. The main process validates each update and rejects values outside the limits below.
+ */
 export interface DockConfig {
+  /** The poll interval while the overlay is visible, from 16 to 60000 ms. */
   activeIntervalMs?: number
+  /** The poll interval while the target is hidden, fullscreen, or not frontmost, from 100 to 60000 ms. */
   hiddenIntervalMs?: number
+  /** The poll interval after the overlay shows or the target moves, from 16 to 60000 ms. */
   burstIntervalMs?: number
+  /** The number of ticks at `burstIntervalMs`, an integer from 0 to 100. */
   burstTicks?: number
+  /** If true, mouse events go through the overlay to the windows below it. */
   clickThrough?: boolean
+  /** The space added on each side of the viewport rect, from 0 to 500 DIP. */
   padding?: number
+  /** If false, the overlay also shows when the target is not frontmost, the same as `showWhenNotFrontmost`. */
   hideWhenInactive?: boolean
   /**
    * If true, keep the overlay visible even when the target window is not frontmost.
    * Fullscreen/hidden/minimized checks still apply.
    */
   showWhenNotFrontmost?: boolean
-  /**
-   * Restrict the overlay to a sub-rectangle of the target window (percentages 0–1).
-   */
+  /** Restricts the overlay to a rect inside the target window. */
   viewport?: DockViewport
 }
 

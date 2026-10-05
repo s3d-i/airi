@@ -41,7 +41,8 @@
   "dependencies": {
     "@moeru/eventa": "catalog:",
     "@moeru/std": "catalog:",
-    "es-toolkit": "catalog:"
+    "es-toolkit": "catalog:",
+    "valibot": "catalog:"
   },
   "optionalDependencies": {
     "@proj-airi/native-window-win32": "workspace:*"

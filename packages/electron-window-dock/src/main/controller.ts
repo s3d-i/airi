@@ -1,6 +1,6 @@
 import type { BrowserWindow, Rectangle } from 'electron'
 
-import type { DockConfig, DockDebugState, DockModeState, DockViewport, WindowTargetSummary } from '..'
+import type { DockConfig, DockDebugState, DockModeState, WindowTargetSummary } from '..'
 import type { WindowMeta, WindowTracker } from './window-tracker'
 
 import process from 'node:process'
@@ -8,7 +8,7 @@ import process from 'node:process'
 import { useLogg } from '@guiiai/logg'
 import { merge } from '@moeru/std'
 import { screen } from 'electron'
-import { clamp } from 'es-toolkit/math'
+import { boolean, check, integer, maxValue, minValue, number, object, parse, partial, pipe } from 'valibot'
 
 import { defaultDockConfig } from '..'
 import { getOverlayWindowIds } from './window-ids'
@@ -28,8 +28,6 @@ export interface DockControllerOptions {
   tracker: WindowTracker
 }
 
-type NormalizedDockConfig = Required<DockConfig>
-
 interface Overlay {
   window: OverlayWindow
   /** Every ID under which a tracker can report the overlay. It exists only after the window exists. */
@@ -38,6 +36,33 @@ interface Overlay {
 
 /** Windows narrower or shorter than this (in DIP) are treated as tool/popup windows, not real occluders. */
 const MIN_REAL_WINDOW_DIMENSION = 60
+
+/**
+ * The longest poll interval. `setTimeout` runs a delay above 2^31 - 1 ms at once,
+ * so an unbounded value can make the loop poll without a pause.
+ */
+const MAX_INTERVAL_MS = 60_000
+
+const viewportEdgeSchema = pipe(number(), minValue(0), maxValue(1))
+
+/**
+ * A config update from IPC. A renderer can send any subset of the fields.
+ * The lower limits stop a bad value, for example an empty input field, from making the loop poll without a pause.
+ */
+const dockConfigUpdateSchema = partial(object({
+  activeIntervalMs: pipe(number(), minValue(16), maxValue(MAX_INTERVAL_MS)),
+  hiddenIntervalMs: pipe(number(), minValue(100), maxValue(MAX_INTERVAL_MS)),
+  burstIntervalMs: pipe(number(), minValue(16), maxValue(MAX_INTERVAL_MS)),
+  burstTicks: pipe(number(), integer(), minValue(0), maxValue(100)),
+  clickThrough: boolean(),
+  padding: pipe(number(), minValue(0), maxValue(500)),
+  hideWhenInactive: boolean(),
+  showWhenNotFrontmost: boolean(),
+  viewport: pipe(
+    object({ left: viewportEdgeSchema, right: viewportEdgeSchema, top: viewportEdgeSchema, bottom: viewportEdgeSchema }),
+    check(viewport => viewport.left < viewport.right && viewport.top < viewport.bottom, 'The viewport must have left < right and top < bottom.'),
+  ),
+}))
 
 const log = useLogg('window-dock').useGlobalConfig()
 
@@ -66,7 +91,7 @@ export class DockController {
   private disposed = false
   private state: DockModeState = 'detached'
   private targetId?: string
-  private config: NormalizedDockConfig = { ...defaultDockConfig }
+  private config: Required<DockConfig> = defaultDockConfig
   private mouseEventsIgnored = false
   private burstTicksRemaining = 0
   private debugState: DockDebugState = {
@@ -157,8 +182,12 @@ export class DockController {
     return this.getDebugState()
   }
 
-  updateConfig(config: DockConfig): DockDebugState {
-    this.config = this.normalizeConfig(merge(this.config, config))
+  /**
+   * Merges a config update into the current config. The next tick uses it.
+   * Throws a `ValiError` for an invalid update and keeps the current config.
+   */
+  updateConfig(input: unknown): DockDebugState {
+    this.config = merge(this.config, parse(dockConfigUpdateSchema, input))
     return this.getDebugState()
   }
 
@@ -170,40 +199,6 @@ export class DockController {
   dispose(): void {
     this.disposed = true
     this.endSession('detached', 'disposed')
-  }
-
-  private normalizeConfig(config: DockConfig): NormalizedDockConfig {
-    const merged = merge(defaultDockConfig, config)
-    return {
-      ...merged,
-      viewport: this.normalizeViewport(merged.viewport),
-    }
-  }
-
-  private normalizeViewport(viewport: DockViewport | undefined): DockViewport {
-    const fallback = defaultDockConfig.viewport
-    const clamp01 = (value: number | undefined) => clamp(Number.isFinite(value ?? 0) ? value ?? 0 : 0, 0, 1)
-
-    let left = clamp01(viewport?.left ?? fallback.left)
-    let right = clamp01(viewport?.right ?? fallback.right)
-    let top = clamp01(viewport?.top ?? fallback.top)
-    let bottom = clamp01(viewport?.bottom ?? fallback.bottom)
-
-    const minSpan = 0.01
-    if (right - left < minSpan) {
-      right = clamp(left + minSpan, 0, 1)
-      if (right - left < minSpan) {
-        left = clamp(right - minSpan, 0, 1)
-      }
-    }
-    if (bottom - top < minSpan) {
-      bottom = clamp(top + minSpan, 0, 1)
-      if (bottom - top < minSpan) {
-        top = clamp(bottom - minSpan, 0, 1)
-      }
-    }
-
-    return { left, right, top, bottom }
   }
 
   /** Returns the overlay of the session. Concurrent calls share one creation. */

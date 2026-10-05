@@ -4311,6 +4311,9 @@ importers:
       es-toolkit:
         specifier: 'catalog:'
         version: 1.51.0
+      valibot:
+        specifier: 'catalog:'
+        version: 1.4.2(typescript@6.0.3)
     devDependencies:
       '@electron-toolkit/preload':
         specifier: ^3.0.2
