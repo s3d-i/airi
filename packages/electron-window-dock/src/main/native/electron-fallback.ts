@@ -4,7 +4,7 @@ import process from 'node:process'
 
 import { app, BrowserWindow } from 'electron'
 
-import { getDisplayBounds } from '../window-tracker'
+import { getDisplayBounds } from '../display'
 
 const ELECTRON_PREFIX = 'electron:'
 

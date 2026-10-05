@@ -11,8 +11,8 @@ import { ipcMain } from 'electron'
 
 import { windowDock } from '..'
 import { DockController } from './controller'
+import { createPlatformWindowTracker } from './native'
 import { getOverlayWindowIds } from './window-ids'
-import { createPlatformWindowTracker } from './window-tracker'
 
 export interface InitMainOptions {
   tracker?: WindowTracker
