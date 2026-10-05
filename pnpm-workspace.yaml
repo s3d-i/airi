@@ -527,7 +527,6 @@ allowBuilds:
   '@napi-rs/image': true
   '@parcel/watcher': true
   '@prisma/client': false
-  '@proj-airi/native-window-win32': true
   better-sqlite3: false
   bufferutil: true
   canvas: true

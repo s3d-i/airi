@@ -18,14 +18,11 @@
   "main": "./index.js",
   "types": "./index.d.ts",
   "files": [
-    "Cargo.toml",
+    "*.node",
     "README.md",
-    "bindings",
-    "build.rs",
     "index.d.ts",
     "index.js",
-    "package.json",
-    "src"
+    "package.json"
   ],
   "engines": {
     "node": ">=18"
@@ -38,11 +35,8 @@
   "napi": {
     "name": "native_window_win32"
   },
-  "dependencies": {
-    "@node-rs/helper": "^1.6.0",
-    "std-env": "catalog:"
-  },
   "devDependencies": {
-    "@napi-rs/cli": "^2.18.0"
+    "@napi-rs/cli": "^2.18.0",
+    "std-env": "catalog:"
   }
 }

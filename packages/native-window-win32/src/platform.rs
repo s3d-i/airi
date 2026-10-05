@@ -15,11 +15,17 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 const HRESULT_SUCCESS: i32 = 0;
-const HRESULT_WAIT_TIMEOUT: i32 = 0x80070102u32 as i32; // WAIT_TIMEOUT
-const HRESULT_NO_MORE_ITEMS: i32 = 0x800700cbu32 as i32; // ERROR_NO_MORE_ITEMS
+const HRESULT_WAIT_TIMEOUT: i32 = 0x80070102u32 as i32; // WAIT_TIMEOUT (258)
+const HRESULT_ENVVAR_NOT_FOUND: i32 = 0x800700cbu32 as i32; // ERROR_ENVVAR_NOT_FOUND (203)
+
+/// Upper limit for the steps of one `GetWindow` z-order walk in [`walk_z_order`].
+/// Microsoft documents a theoretical limit of 65,536 USER handles per session.
+/// Thus a session cannot hold more windows than this at one time.
+/// Source: https://learn.microsoft.com/windows/win32/sysinfo/user-objects
+const MAX_Z_ORDER_WALK_STEPS: usize = 65_536;
 
 /// Convert a Win32 API call that returns an HWND into a Result.
-/// Some HWND-returning APIs (e.g. GetWindow/GW_HWNDNEXT) legitimately return NULL
+/// Some HWND-returning APIs (for example, GetWindow/GW_HWNDNEXT) legitimately return NULL
 /// when the iteration reaches the end, but the windows crate still surfaces that
 /// as an Err whose code is 0 (ERROR_SUCCESS). Treat that specific case as a
 /// successful "no window" sentinel rather than a hard failure so dock mode
@@ -30,13 +36,23 @@ fn win_hwnd(
 ) -> Result<HWND> {
   match result {
     Ok(hwnd) => Ok(hwnd),
-    // Some HWND-returning APIs occasionally bubble up spurious HRESULTs (e.g. WAIT_TIMEOUT) even
-    // though the call simply reached the end of the z-order. Treat these as a graceful stop so we
-    // can fall back to alternate enumeration without surfacing noisy warnings upstream.
+    // NOTICE:
+    // This arm reads three error codes as "no more windows", not as a failure.
+    // PR #979 reports that GetWindow(GW_HWNDNEXT) often failed with 0x80070102 and 0x800700CB.
+    // Probable cause, not confirmed on Windows: GetWindow returns NULL at the end of the z-order
+    // and does not reset the thread error code. The windows crate then builds the Err from
+    // GetLastError(), which can still hold a code from an earlier call on this thread.
+    // 0x80070102 is WAIT_TIMEOUT and 0x800700CB is ERROR_ENVVAR_NOT_FOUND.
+    // Window enumeration does not use either code, so they agree with this cause.
+    // Source: GetWindow in windows-0.59.0 src/Windows/Win32/UI/WindowsAndMessaging/mod.rs,
+    // Error::from_win32 in windows-result-0.3.4 src/error.rs, and the GetWindow return value at
+    // https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindow
+    // Removal condition: if GetWindow calls follow SetLastError(0) and a Windows test shows
+    // that only code 0 marks the end of the list, remove the two other codes.
     Err(err)
       if matches!(
         err.code().0,
-        HRESULT_SUCCESS | HRESULT_WAIT_TIMEOUT | HRESULT_NO_MORE_ITEMS
+        HRESULT_SUCCESS | HRESULT_WAIT_TIMEOUT | HRESULT_ENVVAR_NOT_FOUND
       ) =>
     {
       Ok(HWND::default())
@@ -92,20 +108,45 @@ pub fn list_windows(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
 }
 
 fn list_windows_primary(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
-  let mut windows = Vec::new();
-  let mut seen = HashSet::new();
+  let handles = walk_z_order(top_window()?, window_next, "GetWindow(GW_HWNDNEXT)")?;
+  to_window_infos(handles, &options)
+}
 
-  let mut current = top_window()?;
+/// Collect HWNDs from `start` with `step` until `step` returns NULL.
+///
+/// Microsoft documents that a GetWindow loop "risks being caught in an infinite loop or
+/// referencing a handle to a window that has been destroyed". This walk stops with an error when
+/// it visits an HWND a second time or passes [`MAX_Z_ORDER_WALK_STEPS`]. The public functions
+/// then use the EnumWindows path, which Microsoft documents as more reliable.
+/// Source: https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-enumwindows
+fn walk_z_order(
+  start: HWND,
+  step: fn(HWND) -> Result<HWND>,
+  name: &str,
+) -> Result<Vec<HWND>> {
+  let mut handles = Vec::new();
+  // HWND does not implement Hash in windows 0.59, so the set keys on the handle value.
+  let mut visited = HashSet::new();
+  let mut current = start;
+
   while !is_null_hwnd(current) {
-    if let Some(window) = to_window_info(current, &options)? {
-      if seen.insert(window.id.clone()) {
-        windows.push(window);
-      }
+    if !visited.insert(current.0 as usize) {
+      return Err(Error::new(
+        Status::GenericFailure,
+        format!("{name} walk visited {} again", hwnd_to_id(current)),
+      ));
     }
-    current = window_next(current)?;
+    if handles.len() == MAX_Z_ORDER_WALK_STEPS {
+      return Err(Error::new(
+        Status::GenericFailure,
+        format!("{name} walk passed {MAX_Z_ORDER_WALK_STEPS} steps"),
+      ));
+    }
+    handles.push(current);
+    current = step(current)?;
   }
 
-  Ok(windows)
+  Ok(handles)
 }
 
 fn list_windows_enum(options: ResolvedOptions) -> Result<Vec<WindowInfo>> {
@@ -140,20 +181,8 @@ fn windows_above_primary(
     return Ok(Vec::new());
   }
 
-  let mut results = Vec::new();
-  let mut seen = HashSet::new();
-  let mut current = window_prev(target)?;
-
-  while !is_null_hwnd(current) {
-    if let Some(window) = to_window_info(current, &options)? {
-      if seen.insert(window.id.clone()) {
-        results.push(window);
-      }
-    }
-    current = window_prev(current)?;
-  }
-
-  Ok(results)
+  let handles = walk_z_order(window_prev(target)?, window_prev, "GetWindow(GW_HWNDPREV)")?;
+  to_window_infos(handles, &options)
 }
 
 fn windows_above_enum(
