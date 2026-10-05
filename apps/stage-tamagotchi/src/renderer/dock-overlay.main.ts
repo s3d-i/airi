@@ -6,7 +6,6 @@ import DockOverlayApp from './dock-overlay-app.vue'
 
 import { resolveRendererWindowContext } from './window-context'
 
-// eslint-disable-next-line perfectionist/sort-imports
 import '@unocss/reset/tailwind.css'
 import './styles/hue.css'
 import './styles/main.css'

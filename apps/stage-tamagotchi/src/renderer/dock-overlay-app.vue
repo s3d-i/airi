@@ -2,23 +2,20 @@
 import { useElectronRelativeMouse } from '@proj-airi/electron-vueuse'
 import { Live2DScene } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
+import { useSettingsTheme } from '@proj-airi/stage-ui/stores/settings'
+import { useSettingsStageModel } from '@proj-airi/stage-ui/stores/settings/stage-model'
 import { useTheme } from '@proj-airi/ui'
 import { useWindowSize } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, watch } from 'vue'
 
-const settingsStore = useSettings()
 // Keeps the dark class on documentElement in step with the main window.
 useTheme()
 
-const {
-  stageModelRenderer,
-  stageModelSelected,
-  stageModelSelectedUrl,
-  themeColorsHue,
-  themeColorsHueDynamic,
-} = storeToRefs(settingsStore)
+const stageModelStore = useSettingsStageModel()
+const { stageModelRenderer, stageModelSelected, stageModelSelectedUrl } = storeToRefs(stageModelStore)
+// The theme store reads localStorage, so the overlay follows theme changes from the other windows.
+const { themeColorsHue, themeColorsHueDynamic } = storeToRefs(useSettingsTheme())
 
 watch(themeColorsHue, () => {
   document.documentElement.style.setProperty('--chromatic-hue', themeColorsHue.value.toString())
@@ -37,7 +34,7 @@ const cursorPosition = computed(() => ({
 }))
 
 onMounted(async () => {
-  await settingsStore.initializeStageModel()
+  await stageModelStore.initializeStageModel()
 })
 </script>
 
@@ -53,6 +50,7 @@ onMounted(async () => {
     />
     <ThreeScene
       v-else-if="stageModelRenderer === 'vrm'"
+      :cursor-position="cursorPosition"
       :model-id="stageModelSelected"
       :model-src="stageModelSelectedUrl"
     />
