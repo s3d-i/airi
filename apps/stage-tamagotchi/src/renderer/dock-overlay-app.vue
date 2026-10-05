@@ -39,10 +39,10 @@ const cursorPosition = computed(() => ({
   y: mouse.y.value,
 }))
 
-onMounted(async () => {
-  await settingsStore.initializeStageModel()
+let disposeThemeListener: (() => void) | undefined
 
-  let disposeThemeListener: (() => void) | undefined
+onMounted(async () => {
+  // The listener binds before the await, so an unmount during model initialization still disposes it.
   try {
     disposeThemeListener = eventaContext.value.on(dockOverlayThemeUpdated, (event) => {
       const payload = event?.body
@@ -57,9 +57,12 @@ onMounted(async () => {
     console.error('Failed to bind dock overlay theme sync', err)
   }
 
-  onBeforeUnmount(() => {
-    disposeThemeListener?.()
-  })
+  await settingsStore.initializeStageModel()
+})
+
+// Vue registers lifecycle hooks only during the synchronous part of setup.
+onBeforeUnmount(() => {
+  disposeThemeListener?.()
 })
 </script>
 
