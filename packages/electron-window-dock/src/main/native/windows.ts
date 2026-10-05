@@ -83,44 +83,58 @@ function toWindowMetas(windows: BindingWindowInfo[]): WindowMeta[] {
 }
 
 class Win32WindowTracker implements WindowTracker {
-  private readonly bindings = loadNativeBindings()
+  /**
+   * The binding. The first tracker call loads it, so that the app start does not load the native module.
+   * `null` means that the load failed. Then each call uses the Electron-only fallback until the app quits.
+   */
+  private bindings?: Win32Bindings | null
+
+  private loadBindings(): Win32Bindings | undefined {
+    if (this.bindings === undefined)
+      this.bindings = loadNativeBindings() ?? null
+
+    return this.bindings ?? undefined
+  }
 
   async listWindows(): Promise<WindowMeta[]> {
-    if (!this.bindings)
+    const bindings = this.loadBindings()
+    if (!bindings)
       return collectElectronWindows()
 
     try {
-      return toWindowMetas(this.bindings.listWindows(LIST_OPTS) ?? [])
+      return toWindowMetas(bindings.listWindows(LIST_OPTS))
     }
     catch (err) {
-      log.withError(err as Error).warn('Native window enumeration failed; falling back to Electron-only tracker')
+      log.withError(err).warn('Native window enumeration failed; falling back to Electron-only tracker')
       return collectElectronWindows()
     }
   }
 
   async getWindowMeta(windowId: string): Promise<WindowMeta | undefined> {
-    if (!this.bindings)
+    const bindings = this.loadBindings()
+    if (!bindings)
       return (await this.listWindows()).find(window => window.id === windowId)
 
     try {
-      return toWindowMeta(this.bindings.getWindow(windowId, LIGHT_OPTS))
+      return toWindowMeta(bindings.getWindow(windowId, LIGHT_OPTS))
     }
     catch (err) {
-      log.withError(err as Error).warn('Native window lookup failed; falling back to Electron-only tracker')
+      log.withError(err).warn('Native window lookup failed; falling back to Electron-only tracker')
       const windows = await this.listWindows()
       return windows.find(window => window.id === windowId)
     }
   }
 
   async getWindowsAbove(windowId: string): Promise<WindowMeta[]> {
-    if (!this.bindings)
+    const bindings = this.loadBindings()
+    if (!bindings)
       return getWindowsAboveElectronTarget(windowId, await this.listWindows())
 
     try {
       // Dock Mode does not count AIRI windows, for example the overlay and the main window, as windows that cover the target.
       // Before this filter, the controller subtracted one window, because a frontmost target reported one window above it.
       // The cause of that extra window is not verified on Windows.
-      const above = this.bindings.getWindowsAbove(windowId, ABOVE_OPTS).filter(window => window.ownerPid !== process.pid)
+      const above = bindings.getWindowsAbove(windowId, ABOVE_OPTS).filter(window => window.ownerPid !== process.pid)
       return toWindowMetas(above)
     }
     catch (err) {

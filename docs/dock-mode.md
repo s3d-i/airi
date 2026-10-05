@@ -28,7 +28,7 @@ The app gives `createOverlayWindow` to `setupWindowDock`. This function does the
 
 ### Overlay lifecycle
 
-- At app start, Dock Mode registers only the invoke handlers. No overlay window exists.
+- At app start, Dock Mode registers only the invoke handlers. No overlay window exists, and the Win32 tracker has not loaded its binding.
 - The first `start` of a session creates and loads the overlay window. The window stays hidden until a tick shows it.
 - `stop`, a lost target, and the app quit end the session. Each one stops the poll loop and destroys the overlay window.
 - A normal close of the main window only hides that window. Dock Mode does not depend on the main window, so the session continues.
@@ -78,7 +78,8 @@ When `clickThrough` is `true`, the overlay calls `setIgnoreMouseEvents(true, { f
 - The tracker uses `listWindows`, `getWindow`, and `getWindowsAbove` of `@proj-airi/native-window-win32`.
 - It converts each rect from physical pixels to DIP with `screen.screenToDipRect`.
 - The z-order walk drops each window of this process. AIRI windows, for example the always-on-top main window, do not hide the overlay.
-- If the binding does not load, or a call fails, the tracker logs a warning and uses the Electron-only fallback.
+- The first tracker call loads the binding. If the load fails, the tracker logs one warning and uses the Electron-only fallback until the app quits.
+- If a call to the binding fails, the tracker logs a warning and uses the fallback for that call.
 
 The binding is a native build. The `build` script of the binding skips the native build when `cargo --version` fails. Then the app has no binding, and Dock Mode uses the Electron-only fallback. For the build steps, the CI variable `AIRI_REQUIRE_NATIVE_WINDOW_WIN32`, and the packaging rules, see [`packages/native-window-win32/README.md`](../packages/native-window-win32/README.md).
 
