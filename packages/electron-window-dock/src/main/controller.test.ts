@@ -255,10 +255,10 @@ describe('dockController', () => {
       await startAndTick(controller, 'target')
 
       overlays[0].destroy()
-      await vi.advanceTimersByTimeAsync(1000)
       const lookups = tracker.getWindowMeta.mock.calls.length
       await vi.advanceTimersByTimeAsync(10_000)
 
+      // The next tick ends the session before it reads the target.
       expect(tracker.getWindowMeta).toHaveBeenCalledTimes(lookups)
       expect(overlays[0].destroy).toHaveBeenCalledTimes(1)
       expect(overlays[0].setBounds).toHaveBeenCalledTimes(1)
@@ -270,6 +270,31 @@ describe('dockController', () => {
       await controller.start('target')
 
       expect(createOverlayWindow).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not let a tick of the old session end a start that creates a new overlay', async () => {
+      const { controller, windows, overlays, createOverlayWindow } = setup()
+      windows.set('first', createWindowMeta('first'))
+      windows.set('second', createWindowMeta('second'))
+      await startAndTick(controller, 'first')
+      overlays[0].destroy()
+      const overlay = createFakeOverlayWindow(7)
+      let finishCreation!: (overlay: FakeOverlayWindow) => void
+      createOverlayWindow.mockImplementationOnce(() => new Promise((resolve) => {
+        finishCreation = resolve
+      }))
+
+      // The old session scheduled its next tick before this start. The tick fires during the creation.
+      const starting = controller.start('second')
+      await vi.advanceTimersByTimeAsync(1000)
+      finishCreation(overlay)
+      const state = await starting
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(overlay.destroy).not.toHaveBeenCalled()
+      expect(overlay.showInactive).toHaveBeenCalled()
+      expect(state.targetId).toBe('second')
+      expect(controller.getDebugState().state).toBe('docking-attached-visible')
     })
   })
 

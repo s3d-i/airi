@@ -247,7 +247,7 @@ export class DockController {
 
   /**
    * Calls `createOverlayWindow` with the time limit {@link OVERLAY_CREATION_TIMEOUT_MS}.
-   * At the limit, it aborts the signal of the call and rejects. The caller of `createOverlayWindow` destroys its window on the abort.
+   * At the limit, it aborts the signal of the call and rejects. The `createOverlayWindow` function destroys its window on the abort.
    * If the call still returns a window after the limit, this function destroys that window, because no session owns it.
    */
   private async createOverlayWindowInTime(): Promise<OverlayWindow> {
@@ -292,7 +292,8 @@ export class DockController {
 
   /**
    * Ends the session: no target, no poll loop, no overlay window.
-   * `companion` means that the target was lost. `detached` means that a caller ended the session.
+   * `companion` means that the target was lost. `detached` means that a caller ended the session,
+   * or that the overlay window failed or was destroyed.
    */
   private endSession(state: 'detached' | 'companion', lastReason: string) {
     this.generation++
@@ -341,6 +342,11 @@ export class DockController {
   }
 
   private async tick(generation: number) {
+    // A tick that was scheduled before a `start()` belongs to an older generation. It must not end or change the new session.
+    if (generation !== this.generation) {
+      return
+    }
+
     const targetId = this.targetId
     const overlay = this.overlay
     if (!targetId || !overlay) {
