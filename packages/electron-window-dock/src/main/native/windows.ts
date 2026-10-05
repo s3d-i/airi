@@ -1,5 +1,5 @@
-import type { QueryOptions as BindingQueryOptions, WindowInfo as BindingWindowInfo } from '@proj-airi/native-window-win32'
-import type { Display, Rectangle } from 'electron'
+import type { QueryOptions as BindingQueryOptions, WindowInfo as BindingWindowInfo, WindowRect as BindingWindowRect } from '@proj-airi/native-window-win32'
+import type { Rectangle } from 'electron'
 
 import type { WindowMeta, WindowTracker } from '../window-tracker'
 
@@ -16,14 +16,10 @@ const log = useLogg('window-dock:win32').useGlobalConfig()
 
 const require = createRequire(import.meta.url)
 
-function intersectsDisplay(bounds: Rectangle, displayBounds?: Rectangle): boolean {
-  const displayRect = displayBounds ?? screen.getDisplayMatching(bounds)?.bounds
-  if (!displayRect)
-    return false
-
+function intersectsDisplay(bounds: Rectangle, displayBounds: Rectangle): boolean {
   const { x, y, width, height } = bounds
-  const dx = Math.max(0, Math.min(x + width, displayRect.x + displayRect.width) - Math.max(x, displayRect.x))
-  const dy = Math.max(0, Math.min(y + height, displayRect.y + displayRect.height) - Math.max(y, displayRect.y))
+  const dx = Math.max(0, Math.min(x + width, displayBounds.x + displayBounds.width) - Math.max(x, displayBounds.x))
+  const dy = Math.max(0, Math.min(y + height, displayBounds.y + displayBounds.height) - Math.max(y, displayBounds.y))
   return dx > 0 && dy > 0
 }
 
@@ -128,68 +124,20 @@ class Win32WindowTracker implements WindowTracker {
   }
 }
 
-function convertWinRectToDip(rect: { left: number, top: number, right: number, bottom: number }): { bounds: Rectangle, displayBounds?: Rectangle } | undefined {
+/**
+ * Converts a Win32 window rect in physical screen pixels to DIP bounds, the unit of `BrowserWindow.setBounds`.
+ * Returns `undefined` for an empty rect.
+ */
+function convertWinRectToDip(rect: BindingWindowRect): { bounds: Rectangle, displayBounds: Rectangle } | undefined {
   const width = rect.right - rect.left
   const height = rect.bottom - rect.top
   if (width <= 0 || height <= 0) {
     return undefined
   }
 
-  // Prefer Electron’s built-in converters if present (Electron 29+).
-  const screenToDip = (screen as unknown as { screenToDipRect?: (display: Display | null, rect: Rectangle) => Rectangle }).screenToDipRect
-  if (typeof screenToDip === 'function') {
-    const physicalRect = { x: rect.left, y: rect.top, width, height }
-    const dipRect = screenToDip(null, physicalRect)
-    const display = screen.getDisplayMatching(dipRect)
-    return { bounds: dipRect, displayBounds: display?.bounds }
-  }
-
-  const displays = screen.getAllDisplays()
-  if (!displays.length) {
-    return {
-      bounds: { x: rect.left, y: rect.top, width, height },
-      displayBounds: undefined,
-    }
-  }
-
-  // Compute which display overlaps the physical rect the most, using physical coords.
-  let best: { display: Display, area: number, physicalBounds: Rectangle } | undefined
-  for (const display of displays) {
-    const scale = display.scaleFactor || 1
-    const physicalBounds: Rectangle = {
-      x: Math.round(display.bounds.x * scale),
-      y: Math.round(display.bounds.y * scale),
-      width: Math.round(display.bounds.width * scale),
-      height: Math.round(display.bounds.height * scale),
-    }
-    const dx = Math.max(0, Math.min(rect.left + width, physicalBounds.x + physicalBounds.width) - Math.max(rect.left, physicalBounds.x))
-    const dy = Math.max(0, Math.min(rect.top + height, physicalBounds.y + physicalBounds.height) - Math.max(rect.top, physicalBounds.y))
-    const area = dx * dy
-    if (!best || area > best.area) {
-      best = { display, area, physicalBounds }
-    }
-  }
-
-  const matched = best ?? {
-    display: displays[0],
-    area: 0,
-    physicalBounds: {
-      x: Math.round(displays[0].bounds.x * displays[0].scaleFactor),
-      y: Math.round(displays[0].bounds.y * displays[0].scaleFactor),
-      width: Math.round(displays[0].bounds.width * displays[0].scaleFactor),
-      height: Math.round(displays[0].bounds.height * displays[0].scaleFactor),
-    },
-  }
-
-  const scale = matched.display.scaleFactor || 1
-  const dipBounds: Rectangle = {
-    x: matched.display.bounds.x + (rect.left - matched.physicalBounds.x) / scale,
-    y: matched.display.bounds.y + (rect.top - matched.physicalBounds.y) / scale,
-    width: width / scale,
-    height: height / scale,
-  }
-
-  return { bounds: dipBounds, displayBounds: matched.display.bounds }
+  // With `null` in place of a window, Electron scales with the display nearest to the rect.
+  const bounds = screen.screenToDipRect(null, { x: rect.left, y: rect.top, width, height })
+  return { bounds, displayBounds: screen.getDisplayMatching(bounds).bounds }
 }
 
 export class WindowsWindowTracker implements WindowTracker {
