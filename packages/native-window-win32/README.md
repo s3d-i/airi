@@ -72,7 +72,9 @@ On Windows, `pnpm install` runs `build`. The root `postinstall` runs `build:pack
 
 To build the binding, install Rust so that `cargo` is on PATH. If `CARGO` is set, the script and the napi CLI use that command instead.
 
-If a CI or release job must ship the binding, set `AIRI_REQUIRE_NATIVE_WINDOW_WIN32=1` for that job. `turbo.json` passes this variable through to the task.
+By default, Turbo 2 runs a task in strict environment mode. Then the task gets only the variables that `turbo.json` lists, and a set of default variables. For this task, `turbo.json` lists `AIRI_REQUIRE_NATIVE_WINDOW_WIN32`, `CARGO`, `CARGO_HOME`, `RUSTUP_HOME`, and `RUSTUP_TOOLCHAIN`.
+
+A CI or release job can set `AIRI_REQUIRE_NATIVE_WINDOW_WIN32=1` to make a missing Cargo an error. The current release workflows in `.github/workflows` do not set it. Thus a release build without Cargo has no binding, and Dock Mode uses the Electron-only fallback.
 
 ```bash
 pnpm -F @proj-airi/native-window-win32 build         # Builds on Windows. Skips on other platforms.
