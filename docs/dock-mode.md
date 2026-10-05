@@ -137,7 +137,7 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 - Many AIRI windows create their Eventa contexts without `onlySameWindow`. Thus their base window handlers also run for invokes from other windows, for example the overlay.
 - Examples in `apps/stage-tamagotchi/src/main` are the main window (`windows/main/rpc/index.electron.ts`), the settings window (`windows/settings/rpc/index.electron.ts`), and the onboarding window (`windows/onboarding/index.ts`). The caption, spotlight, and dashboard windows also do this.
 - These contexts are in upstream code. Dock Mode does not change them.
-- A macOS run of commit 5edfb6242 measured three handler runs for one invoke from the devtools page, and four for one invoke from the overlay. Each count had the handlers of the main window, the settings window, and a closed onboarding window. The overlay count also had the handler of the overlay. Each invoke returned the correct result.
+- A macOS test run of this branch before its last fixes measured three handler runs for one invoke from the devtools page, and four for one invoke from the overlay. Each count had the handlers of the main window, the settings window, and a closed onboarding window. The overlay count also had the handler of the overlay. Each invoke returned the correct result.
 
 ### Not verified on Windows
 
