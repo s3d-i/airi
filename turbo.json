@@ -15,7 +15,8 @@
     },
     "@proj-airi/native-window-win32#build": {
       "dependsOn": ["^build"],
-      "outputs": ["*.node"]
+      "outputs": ["*.node"],
+      "passThroughEnv": ["AIRI_REQUIRE_NATIVE_WINDOW_WIN32"]
     }
   }
 }
