@@ -1,19 +1,16 @@
 <script setup lang="ts">
-import { useElectronEventaContext, useElectronRelativeMouse } from '@proj-airi/electron-vueuse'
+import { useElectronRelativeMouse } from '@proj-airi/electron-vueuse'
 import { Live2DScene } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
 import { useSettings } from '@proj-airi/stage-ui/stores/settings'
 import { useTheme } from '@proj-airi/ui'
 import { useWindowSize } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
-
-import { dockOverlayThemeUpdated } from '../shared/eventa'
+import { computed, onMounted, watch } from 'vue'
 
 const settingsStore = useSettings()
 // Keeps the dark class on documentElement in step with the main window.
 useTheme()
-const eventaContext = useElectronEventaContext()
 
 const {
   stageModelRenderer,
@@ -39,30 +36,8 @@ const cursorPosition = computed(() => ({
   y: mouse.y.value,
 }))
 
-let disposeThemeListener: (() => void) | undefined
-
 onMounted(async () => {
-  // The listener binds before the await, so an unmount during model initialization still disposes it.
-  try {
-    disposeThemeListener = eventaContext.value.on(dockOverlayThemeUpdated, (event) => {
-      const payload = event?.body
-      if (!payload)
-        return
-
-      themeColorsHue.value = payload.hue
-      themeColorsHueDynamic.value = payload.dynamic
-    })
-  }
-  catch (err) {
-    console.error('Failed to bind dock overlay theme sync', err)
-  }
-
   await settingsStore.initializeStageModel()
-})
-
-// Vue registers lifecycle hooks only during the synchronous part of setup.
-onBeforeUnmount(() => {
-  disposeThemeListener?.()
 })
 </script>
 

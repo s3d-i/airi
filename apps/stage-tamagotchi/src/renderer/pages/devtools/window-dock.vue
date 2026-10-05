@@ -1,23 +1,13 @@
 <script setup lang="ts">
 import type { DockConfig, DockDebugState, WindowTargetSummary } from '@proj-airi/electron-window-dock'
 
-import { defineInvoke } from '@moeru/eventa'
-import { useElectronEventaContext } from '@proj-airi/electron-vueuse'
 import { defaultDockConfig } from '@proj-airi/electron-window-dock'
 import { useElectronWindowDock } from '@proj-airi/electron-window-dock/vue'
-import { useSettings } from '@proj-airi/stage-ui/stores/settings'
 import { FieldCheckbox, FieldRange } from '@proj-airi/ui'
 import { clamp } from 'es-toolkit/math'
-import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
-import { dockOverlaySyncTheme } from '../../../shared/eventa'
-
 const { fetchTargets, beginDock, endDock, updateConfig, readDebugState } = useElectronWindowDock(window.electron.ipcRenderer)
-const settings = useSettings()
-const { themeColorsHue, themeColorsHueDynamic } = storeToRefs(settings)
-const eventaContext = useElectronEventaContext()
-const syncDockOverlayTheme = defineInvoke(eventaContext.value, dockOverlaySyncTheme)
 
 const allTargets = ref<WindowTargetSummary[]>([])
 const targets = ref<WindowTargetSummary[]>([])
@@ -172,10 +162,6 @@ async function startDock() {
     // Push current UI settings so the controller starts with the chosen viewport/visibility.
     await updateConfig({ ...config, viewport: { ...defaultViewport, ...config.viewport } })
     debugState.value = await beginDock({ targetId: selectedTargetId.value })
-    await syncDockOverlayTheme({
-      hue: themeColorsHue.value,
-      dynamic: themeColorsHueDynamic.value,
-    })
   }
   catch (err) {
     console.error(err)

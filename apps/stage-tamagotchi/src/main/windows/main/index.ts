@@ -237,7 +237,6 @@ export async function setupMainWindow(params: {
     i18n: params.i18n,
     onboardingWindowManager: params.onboardingWindowManager,
     ioTraceRecording: params.ioTraceRecording,
-    dockOverlayContext,
   })
 
   await load(window, withHashRoute(baseUrl(resolve(getElectronMainDirname(), '..', 'renderer')), '/', {
