@@ -136,9 +136,9 @@ export class DockController {
         return false
       }
       // NOTICE:
-      // The first Win32 version also dropped AIRI windows with the overlay title.
-      // No case where the ID filter misses the overlay is verified on Windows.
-      // Source: Dock Mode PR #979.
+      // This title filter drops the overlay if a tracker reports an ID outside `overlay.ids`.
+      // No such case is verified on Windows.
+      // Source: commit 701e9b695, the first Win32 version.
       // Removal condition: a Windows test shows that the ID filter alone drops the overlay.
       return candidate.ownerPid !== process.pid || candidate.title !== overlayTitle
     })
