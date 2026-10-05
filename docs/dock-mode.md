@@ -129,6 +129,14 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 - `pnpm -F @proj-airi/electron-window-dock exec vitest run` runs the package tests.
 - The controller tests use a fake tracker, a fake overlay window, a mocked `electron.screen`, and fake timers.
 - No automated test runs a real tracker or a real overlay window.
+- No automated test covers the Win32 tracker, for example its foreground check. The tracker loads the binding only when `process.platform` is `win32`.
+- No automated test covers the overlay window factory in `apps/stage-tamagotchi/src/main/windows/dock-overlay/`.
+
+### Known limits
+
+- The main window, the settings window, and the onboarding window create their Eventa contexts without `onlySameWindow`. Thus their base window handlers also run for invokes from other windows, for example the overlay.
+- These contexts are in upstream code that Dock Mode does not change: `windows/main/index.ts`, `windows/settings/rpc/index.electron.ts`, and `windows/onboarding/index.ts` in `apps/stage-tamagotchi/src/main`.
+- A macOS run of commit 5edfb6242 measured three handler runs for one invoke from the devtools page, and four for one invoke from the overlay. The handlers of a closed onboarding window were in this count. Each invoke returned the correct result.
 
 ### Not verified on Windows
 
@@ -147,6 +155,7 @@ Nobody ran this version on Windows. These parts are not verified on Windows:
 - A user setting for Dock Mode outside the devtools page.
 - Automatic reattach after a lost target, and a saved last target.
 - Auto-hide when the cursor enters the overlay. This needs a global cursor hit test.
+- `onlySameWindow` for the Eventa contexts of the main, settings, and onboarding windows. See [Known limits](#known-limits).
 
 ### References
 
