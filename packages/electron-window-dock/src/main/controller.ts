@@ -23,8 +23,11 @@ export interface DockControllerOptions {
   /**
    * Creates the overlay window. The controller calls it on the first `start()` of a session.
    * The window must be hidden when the promise resolves.
+   *
+   * The controller aborts `signal` when the creation takes longer than 30 s ({@link OVERLAY_CREATION_TIMEOUT_MS}).
+   * Then `start()` fails, and the function must destroy its window.
    */
-  createOverlayWindow: () => Promise<OverlayWindow>
+  createOverlayWindow: (signal: AbortSignal) => Promise<OverlayWindow>
   tracker: WindowTracker
 }
 
@@ -33,6 +36,13 @@ interface Overlay {
   /** Every ID under which a tracker can report the overlay. It exists only after the window exists. */
   ids: Set<string>
 }
+
+/**
+ * The time limit for one `createOverlayWindow` call, in ms. A call creates a window and loads one renderer page.
+ * Without a limit, a page load that does not finish keeps `start()` pending and keeps a hidden window.
+ * The value is a chosen limit, not a measured load time.
+ */
+const OVERLAY_CREATION_TIMEOUT_MS = 30_000
 
 /** Windows narrower or shorter than this (in DIP) are treated as tool/popup windows, not real occluders. */
 const MIN_REAL_WINDOW_DIMENSION = 60
@@ -66,14 +76,21 @@ const dockConfigUpdateSchema = partial(object({
 
 const log = useLogg('window-dock').useGlobalConfig()
 
+/** Destroys the window if it still exists. `destroy()` on a destroyed window can throw. */
+function destroyWindow(window: OverlayWindow) {
+  if (!window.isDestroyed()) {
+    window.destroy()
+  }
+}
+
 /**
  * Keeps the overlay window on the target window, and shows it only when the target is visible.
  *
- * A session starts with `start()` and ends with `stop()`, `dispose()`, or a lost target.
+ * A session starts with `start()` and ends with `stop()`, `dispose()`, a lost target, or a destroyed overlay window.
  * The overlay window exists only during a session, and the poll loop runs only during a session.
  */
 export class DockController {
-  private readonly createOverlayWindow: () => Promise<OverlayWindow>
+  private readonly createOverlayWindow: (signal: AbortSignal) => Promise<OverlayWindow>
   private readonly tracker: WindowTracker
   private overlay?: Overlay
   private overlayCreation?: Promise<Overlay | undefined>
@@ -214,9 +231,9 @@ export class DockController {
   }
 
   private async createOverlay(): Promise<Overlay | undefined> {
-    const window = await this.createOverlayWindow()
+    const window = await this.createOverlayWindowInTime()
     if (!this.overlayWanted) {
-      window.destroy()
+      destroyWindow(window)
       return undefined
     }
 
@@ -228,13 +245,48 @@ export class DockController {
     return this.overlay
   }
 
+  /**
+   * Calls `createOverlayWindow` with the time limit {@link OVERLAY_CREATION_TIMEOUT_MS}.
+   * At the limit, it aborts the signal of the call and rejects. The caller of `createOverlayWindow` destroys its window on the abort.
+   * If the call still returns a window after the limit, this function destroys that window, because no session owns it.
+   */
+  private async createOverlayWindowInTime(): Promise<OverlayWindow> {
+    const abortController = new AbortController()
+    const creation = this.createOverlayWindow(abortController.signal)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error(`The overlay window was not created in ${OVERLAY_CREATION_TIMEOUT_MS} ms.`)
+        abortController.abort(error)
+        reject(error)
+      }, OVERLAY_CREATION_TIMEOUT_MS)
+    })
+
+    try {
+      return await Promise.race([creation, timeout])
+    }
+    catch (error) {
+      if (abortController.signal.aborted) {
+        void creation.then(
+          destroyWindow,
+          // The timeout error already went to `start()`. A later error of the same call adds no information.
+          () => undefined,
+        )
+      }
+      throw error
+    }
+    finally {
+      clearTimeout(timer)
+    }
+  }
+
   private releaseOverlay() {
     this.overlayWanted = false
     const overlay = this.overlay
     this.overlay = undefined
     this.mouseEventsIgnored = false
-    if (overlay && !overlay.window.isDestroyed()) {
-      overlay.window.destroy()
+    if (overlay) {
+      destroyWindow(overlay.window)
     }
   }
 
@@ -292,6 +344,12 @@ export class DockController {
     const targetId = this.targetId
     const overlay = this.overlay
     if (!targetId || !overlay) {
+      return
+    }
+
+    // Code outside the controller closed or destroyed the overlay window. The session cannot show the overlay, so it ends.
+    if (overlay.window.isDestroyed()) {
+      this.endSession('detached', 'overlay-destroyed')
       return
     }
 

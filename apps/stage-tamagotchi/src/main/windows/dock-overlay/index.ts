@@ -19,8 +19,10 @@ import { protectPrivilegedWindowNavigation, setupBaseWindowElectronInvokes, tran
 /**
  * Creates the overlay window of Dock Mode and loads its renderer.
  * The window stays hidden. The dock controller shows it on the target window.
+ *
+ * If a step fails, or the dock controller aborts `signal` at its time limit, the window is destroyed.
  */
-async function createDockOverlayWindow(params: { serverChannel: ServerChannel, i18n: I18n }): Promise<BrowserWindow> {
+async function createDockOverlayWindow(params: { serverChannel: ServerChannel, i18n: I18n }, signal: AbortSignal): Promise<BrowserWindow> {
   const window = new BrowserWindow({
     title: 'AIRI Dock Overlay',
     width: 450,
@@ -40,14 +42,23 @@ async function createDockOverlayWindow(params: { serverChannel: ServerChannel, i
     ...transparentWindowConfig(),
   })
 
-  window.setFullScreenable(false)
-  window.setVisibleOnAllWorkspaces(true)
-  if (isMacOS) {
-    window.setWindowButtonVisibility(false)
+  // On the abort, no hidden window stays. `load` can then reject or stay pending.
+  // The dock controller does not wait for this function after the abort.
+  const destroyWindow = () => {
+    if (!window.isDestroyed()) {
+      window.destroy()
+    }
   }
-  protectPrivilegedWindowNavigation(window)
+  signal.addEventListener('abort', destroyWindow, { once: true })
 
   try {
+    window.setFullScreenable(false)
+    window.setVisibleOnAllWorkspaces(true)
+    if (isMacOS) {
+      window.setWindowButtonVisibility(false)
+    }
+    protectPrivilegedWindowNavigation(window)
+
     // `onlySameWindow` hears only this window and disposes with it. Without it, the base handlers
     // of the overlay also answer invokes from the main window.
     const { context } = createContext(ipcMain, window, { onlySameWindow: true })
@@ -59,8 +70,13 @@ async function createDockOverlayWindow(params: { serverChannel: ServerChannel, i
     }))
   }
   catch (error) {
-    window.destroy()
+    // A failed step can leave a destroyed window, for example after the abort.
+    // `destroy()` on that window can throw, and its error would replace the original error.
+    destroyWindow()
     throw error
+  }
+  finally {
+    signal.removeEventListener('abort', destroyWindow)
   }
 
   return window
@@ -76,7 +92,7 @@ async function createDockOverlayWindow(params: { serverChannel: ServerChannel, i
  */
 export function setupDockOverlayWindowManager(params: { serverChannel: ServerChannel, i18n: I18n }): WindowDock {
   const windowDock = setupWindowDock({
-    createOverlayWindow: () => createDockOverlayWindow(params),
+    createOverlayWindow: signal => createDockOverlayWindow(params, signal),
   })
 
   onAppBeforeQuit(() => windowDock.dispose())

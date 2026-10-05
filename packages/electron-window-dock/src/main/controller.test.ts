@@ -62,7 +62,7 @@ function setup() {
 
   // The fake overlays get Electron IDs 100, 101, and so on.
   const overlays: FakeOverlayWindow[] = []
-  const createOverlayWindow = vi.fn(async () => {
+  const createOverlayWindow = vi.fn<(signal: AbortSignal) => Promise<FakeOverlayWindow>>(async () => {
     const overlay = createFakeOverlayWindow(100 + overlays.length)
     overlays.push(overlay)
     return overlay
@@ -134,6 +134,82 @@ describe('dockController', () => {
       expect(lateOverlay.destroy).toHaveBeenCalledTimes(1)
       expect(state.state).toBe('detached')
       expect(tracker.getWindowMeta).not.toHaveBeenCalled()
+    })
+
+    it('ends the session and rethrows when the overlay creation fails', async () => {
+      const { controller, tracker, windows, createOverlayWindow } = setup()
+      windows.set('target', createWindowMeta('target'))
+      const error = new Error('load failed')
+      createOverlayWindow.mockRejectedValueOnce(error)
+
+      await expect(controller.start('target')).rejects.toBe(error)
+
+      // The timer of the time limit is cleared, and no tick is scheduled.
+      expect(vi.getTimerCount()).toBe(0)
+      expect(controller.getDebugState().state).toBe('detached')
+      expect(controller.getDebugState().lastReason).toBe('overlay-failed')
+      expect(controller.getDebugState().targetId).toBeUndefined()
+      expect(tracker.getWindowMeta).not.toHaveBeenCalled()
+
+      await startAndTick(controller, 'target')
+
+      expect(createOverlayWindow).toHaveBeenCalledTimes(2)
+      expect(controller.getDebugState().state).toBe('docking-attached-visible')
+    })
+
+    it('fails the start at the 30 s limit, aborts the creation, and destroys an overlay that arrives later', async () => {
+      const { controller, tracker, windows, createOverlayWindow } = setup()
+      windows.set('target', createWindowMeta('target'))
+      const lateOverlay = createFakeOverlayWindow(7)
+      let finishCreation!: (overlay: FakeOverlayWindow) => void
+      let signal!: AbortSignal
+      createOverlayWindow.mockImplementationOnce(creationSignal => new Promise((resolve) => {
+        signal = creationSignal
+        finishCreation = resolve
+      }))
+
+      const starting = controller.start('target')
+      const failure = expect(starting).rejects.toThrow('The overlay window was not created in 30000 ms.')
+      await vi.advanceTimersByTimeAsync(29_999)
+
+      expect(signal.aborted).toBe(false)
+
+      await vi.advanceTimersByTimeAsync(1)
+      await failure
+
+      expect(signal.aborted).toBe(true)
+      expect(controller.getDebugState().state).toBe('detached')
+      expect(controller.getDebugState().lastReason).toBe('overlay-failed')
+
+      finishCreation(lateOverlay)
+      await vi.advanceTimersByTimeAsync(5000)
+
+      expect(lateOverlay.destroy).toHaveBeenCalledTimes(1)
+      expect(lateOverlay.showInactive).not.toHaveBeenCalled()
+      expect(tracker.getWindowMeta).not.toHaveBeenCalled()
+    })
+
+    it('ends the session and stops polling when something else destroys the overlay window', async () => {
+      const { controller, tracker, windows, overlays, createOverlayWindow } = setup()
+      windows.set('target', createWindowMeta('target'))
+      await startAndTick(controller, 'target')
+
+      overlays[0].destroy()
+      await vi.advanceTimersByTimeAsync(1000)
+      const lookups = tracker.getWindowMeta.mock.calls.length
+      await vi.advanceTimersByTimeAsync(10_000)
+
+      expect(tracker.getWindowMeta).toHaveBeenCalledTimes(lookups)
+      expect(overlays[0].destroy).toHaveBeenCalledTimes(1)
+      expect(overlays[0].setBounds).toHaveBeenCalledTimes(1)
+      expect(controller.getDebugState().state).toBe('detached')
+      expect(controller.getDebugState().lastReason).toBe('overlay-destroyed')
+      expect(controller.getDebugState().targetId).toBeUndefined()
+      expect(controller.getDebugState().pollIntervalMs).toBe(0)
+
+      await controller.start('target')
+
+      expect(createOverlayWindow).toHaveBeenCalledTimes(2)
     })
   })
 

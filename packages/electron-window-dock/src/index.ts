@@ -3,7 +3,7 @@ import type { Rectangle } from 'electron'
 import { defineInvokeEventa } from '@moeru/eventa'
 
 /**
- * - `detached`: no session. A caller stopped Dock Mode, or it never started.
+ * - `detached`: no session. Dock Mode never started, a caller stopped it, or the overlay window failed or was destroyed.
  * - `companion`: the target is hidden or minimized. When the target is lost, the session also ends in this state.
  * - `docking-attached-visible`: the overlay is on the target.
  * - `docking-attached-hidden`: the session continues, but the target is fullscreen or not frontmost.

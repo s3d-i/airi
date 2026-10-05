@@ -26,11 +26,17 @@ The app gives `createOverlayWindow` to `setupWindowDock`. This function does the
 2. It creates an Eventa context with `onlySameWindow: true`, so the base handlers of the overlay hear only the overlay.
 3. It registers the base window handlers. Then it loads `dock-overlay.html#/dock-overlay` with `synced-leader=false`.
 
+If a step fails, or Dock Mode aborts the `signal` argument, the function destroys the window.
+
 ### Overlay lifecycle
 
 - At app start, Dock Mode registers only the invoke handlers. No overlay window exists, and the Win32 tracker has not loaded its binding.
 - The first `start` of a session creates and loads the overlay window. The window stays hidden until a tick shows it.
 - `stop`, a lost target, and the app quit end the session. Each one stops the poll loop and destroys the overlay window.
+- If the overlay creation fails, `start` rejects with its error. The session ends in `detached` with the reason `overlay-failed`.
+- If the overlay creation takes longer than 30 s, Dock Mode aborts the signal of `createOverlayWindow`. Then `start` fails in the same way. Dock Mode destroys a window that arrives after the abort.
+- If code outside Dock Mode closes or destroys the overlay window, the next tick ends the session in `detached` with the reason `overlay-destroyed`.
+- A `stop` and a new `start` during the overlay creation share that creation. The new session uses the window.
 - A normal close of the main window only hides that window. Dock Mode does not depend on the main window, so the session continues.
 - The overlay renderer is a follower of the synchronized stores. It reads the stage model from `useSettingsStageModel`.
 - It reads the theme from `useSettingsTheme`. This store reads localStorage and follows its changes from other windows.
@@ -39,13 +45,14 @@ The app gives `createOverlayWindow` to `setupWindowDock`. This function does the
 
 Each tick reads the target. Then it applies the first rule that matches:
 
-1. If the tracker does not find the target, the session ends in `companion`.
-2. If the target is hidden or minimized, the overlay hides. The state is `companion`, and polling continues.
-3. If the target is fullscreen, the overlay hides. The state is `docking-attached-hidden`.
-4. If a real window is above the target, the overlay hides. The state is `docking-attached-hidden`.
-5. In all other cases, the overlay moves to the viewport rect of the target. It goes always on top and shows without focus.
+1. If the overlay window is destroyed, the session ends in `detached`.
+2. If the tracker does not find the target, the session ends in `companion`.
+3. If the target is hidden or minimized, the overlay hides. The state is `companion`, and polling continues.
+4. If the target is fullscreen, the overlay hides. The state is `docking-attached-hidden`.
+5. If a real window is above the target, the overlay hides. The state is `docking-attached-hidden`.
+6. In all other cases, the overlay moves to the viewport rect of the target. It goes always on top and shows without focus.
 
-Rule 4 does not apply when `showWhenNotFrontmost` is `true` or `hideWhenInactive` is `false`.
+Rule 5 does not apply when `showWhenNotFrontmost` is `true` or `hideWhenInactive` is `false`.
 
 A real window above the target is not the overlay, not minimized, and on screen. It is at least 60 by 60 DIP, and its layer is 0 or not set.
 
@@ -57,7 +64,7 @@ When `clickThrough` is `true`, the overlay calls `setIgnoreMouseEvents(true, { f
 
 | State | Meaning |
 | --- | --- |
-| `detached` | No session. A caller stopped Dock Mode, or it never started. |
+| `detached` | No session. Dock Mode never started, a caller stopped it, or the overlay window failed or was destroyed. |
 | `companion` | The target is hidden or minimized, and the session continues. A lost target also ends the session in this state. |
 | `docking-attached-visible` | The overlay is on the target. |
 | `docking-attached-hidden` | The target is fullscreen or not frontmost. The overlay is hidden. |

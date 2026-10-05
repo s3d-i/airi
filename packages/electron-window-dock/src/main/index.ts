@@ -14,8 +14,11 @@ export interface WindowDockOptions {
    *
    * Dock Mode calls it on the first start of a session, and destroys the window when the session ends.
    * The window must be hidden, transparent, and not focusable. Load its page before the promise resolves.
+   *
+   * If the creation takes longer than 30 s, Dock Mode aborts `signal` and the start fails.
+   * On the abort, destroy the window. Dock Mode destroys a window that the promise gives after the abort.
    */
-  createOverlayWindow: () => Promise<BrowserWindow>
+  createOverlayWindow: (signal: AbortSignal) => Promise<BrowserWindow>
 }
 
 export interface WindowDock {

@@ -31,7 +31,8 @@ import { setupWindowDock } from '@proj-airi/electron-window-dock/main'
 
 const windowDock = setupWindowDock({
   // Return a hidden, transparent, not focusable window. Load its page before you return it.
-  createOverlayWindow: async () => createOverlayWindow(),
+  // When `signal` aborts, destroy the window.
+  createOverlayWindow: async signal => createOverlayWindow(signal),
 })
 
 // On app quit, end the session and remove the IPC handlers.
@@ -62,7 +63,7 @@ In AIRI, `apps/stage-tamagotchi/src/main/windows/dock-overlay/` gives the overla
 | Export | Description |
 | --- | --- |
 | `setupWindowDock(options)` | Creates the dock controller and registers the `windowDock` invoke handlers. Returns a `WindowDock`. |
-| `WindowDockOptions.createOverlayWindow` | `() => Promise<BrowserWindow>`. Dock Mode calls it on the first start of a session. |
+| `WindowDockOptions.createOverlayWindow` | `(signal: AbortSignal) => Promise<BrowserWindow>`. Dock Mode calls it on the first start of a session. After 30 s, Dock Mode aborts `signal`. |
 | `WindowDock.dispose()` | Removes the handlers, ends the session, and destroys the overlay window. |
 
 The handlers use an Eventa context without a window. Any renderer can call them, and the reply goes to the caller.
@@ -101,13 +102,17 @@ The main process validates each update with Valibot. An invalid update throws, a
 | --- | --- |
 | `start` without a session | Creates the overlay window, sets the target, and runs the first tick at once. |
 | `start` during a session | Changes the target. The overlay window stays. |
-| `stop` | Ends the session in `detached`. Polling stops, and the overlay window is destroyed. |
+| `start` during the overlay creation | Uses the same creation. The last `start` sets the target. |
+| The overlay creation fails | `start` rejects with the error. The session ends in `detached` with the reason `overlay-failed`. |
+| The overlay creation takes longer than 30 s | Aborts `signal`, and `start` rejects. The session ends in `detached` with the reason `overlay-failed`. A window that arrives later is destroyed. |
+| `stop` | Ends the session in `detached`. Polling stops, and the overlay window is destroyed. A window that arrives later is destroyed, unless a new `start` uses it. |
 | The tracker does not find the target | Ends the session in `companion` with the reason `target-missing`. |
+| Code outside Dock Mode destroys the overlay window | The next tick ends the session in `detached` with the reason `overlay-destroyed`. |
 | `dispose` | Ends the session. After this, `start` does nothing. |
 
 | State | Meaning |
 | --- | --- |
-| `detached` | No session. |
+| `detached` | No session. Dock Mode never started, a caller stopped it, or the overlay window failed or was destroyed. |
 | `companion` | The target is hidden or minimized, and the session continues. A lost target also ends the session in this state. |
 | `docking-attached-visible` | The overlay is on the target. |
 | `docking-attached-hidden` | The target is fullscreen or not frontmost. The overlay is hidden. |
