@@ -22,8 +22,6 @@
     "./vue": "./dist/vue.js",
     "./package.json": "./package.json"
   },
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "README.md",
@@ -51,5 +49,8 @@
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "vue": "catalog:"
+  },
+  "inlinedDependencies": {
+    "@electron-toolkit/preload": "3.0.2"
   }
 }
