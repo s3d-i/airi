@@ -4443,17 +4443,13 @@ importers:
         version: 1.51.0
 
   packages/native-window-win32:
-    dependencies:
-      '@node-rs/helper':
-        specifier: ^1.6.0
-        version: 1.6.2
-      std-env:
-        specifier: 'catalog:'
-        version: 4.2.0
     devDependencies:
       '@napi-rs/cli':
         specifier: ^2.18.0
         version: 2.18.4
+      std-env:
+        specifier: 'catalog:'
+        version: 4.2.0
 
   packages/pipelines-audio:
     dependencies:
@@ -9471,9 +9467,6 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@napi-rs/triples@2.1.30':
-    resolution: {integrity: sha512-AQ/HBKS9Y0uLXBNE/xQeM/AHNs0N9M/kzeuPoqiIsjlAVen3fpfB0igusy+S2FkMRc+XHsI24c+AAbFbfRVe/w==}
-
   '@napi-rs/wasm-runtime@1.2.3':
     resolution: {integrity: sha512-UMduMbqO5s5zF2NkNacMT/yK5Y5QiKvWr2+50bzIIxFDwVJ2h49b+oyjaCGPhJxd2/gC2x39EHv/gHVuu36x2Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=23.5.0}
@@ -9500,9 +9493,6 @@ packages:
   '@noble/hashes@2.3.0':
     resolution: {integrity: sha512-oN+QwyX7VSHotibwubG3kpzbwKrfnyR6OOO+3Nk/53ADL7FmgHHz4TgrbaYKvvOw09u6QTx0oiH1cNCIOuN0CQ==}
     engines: {node: '>= 20.19.0'}
-
-  '@node-rs/helper@1.6.2':
-    resolution: {integrity: sha512-Iyq+Y+yFSBwri6uQL9T1Py7aTAcvHs4XWloYxMMzLlRqunzqNCzmfB3WeHV12WmqvtWBJVro5Dtz0sMZqbseUQ==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -24355,8 +24345,6 @@ snapshots:
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
 
-  '@napi-rs/triples@2.1.30': {}
-
   '@napi-rs/wasm-runtime@1.2.3(@emnapi/core@1.10.0)(@emnapi/runtime@1.10.0)':
     dependencies:
       '@emnapi/core': 1.10.0
@@ -24401,10 +24389,6 @@ snapshots:
   '@noble/hashes@1.8.0': {}
 
   '@noble/hashes@2.3.0': {}
-
-  '@node-rs/helper@1.6.2':
-    dependencies:
-      '@napi-rs/triples': 2.1.30
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:
