@@ -36,6 +36,9 @@ export default defineConfig({
           '@auv-js/sdk',
           '@xsai-apple-speech/transcription-native',
           '@xsai-apple-vision/vision-native',
+          // electron-vite externalizes only `dependencies` by default, and this one is optional.
+          // The bundled `@proj-airi/electron-window-dock` loads it at runtime with `createRequire`.
+          '@proj-airi/native-window-win32',
         ],
       },
     },
