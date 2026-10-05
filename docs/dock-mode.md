@@ -134,9 +134,10 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 
 ### Known limits
 
-- The main window, the settings window, and the onboarding window create their Eventa contexts without `onlySameWindow`. Thus their base window handlers also run for invokes from other windows, for example the overlay.
-- These contexts are in upstream code that Dock Mode does not change: `windows/main/index.ts`, `windows/settings/rpc/index.electron.ts`, and `windows/onboarding/index.ts` in `apps/stage-tamagotchi/src/main`.
-- A macOS run of commit 5edfb6242 measured three handler runs for one invoke from the devtools page, and four for one invoke from the overlay. The handlers of a closed onboarding window were in this count. Each invoke returned the correct result.
+- Many AIRI windows create their Eventa contexts without `onlySameWindow`. Thus their base window handlers also run for invokes from other windows, for example the overlay.
+- Examples in `apps/stage-tamagotchi/src/main` are the main window (`windows/main/rpc/index.electron.ts`), the settings window (`windows/settings/rpc/index.electron.ts`), and the onboarding window (`windows/onboarding/index.ts`). The caption, spotlight, and dashboard windows also do this.
+- These contexts are in upstream code. Dock Mode does not change them.
+- A macOS run of commit 5edfb6242 measured three handler runs for one invoke from the devtools page, and four for one invoke from the overlay. Each count had the handlers of the main window, the settings window, and a closed onboarding window. The overlay count also had the handler of the overlay. Each invoke returned the correct result.
 
 ### Not verified on Windows
 
@@ -155,7 +156,7 @@ Nobody ran this version on Windows. These parts are not verified on Windows:
 - A user setting for Dock Mode outside the devtools page.
 - Automatic reattach after a lost target, and a saved last target.
 - Auto-hide when the cursor enters the overlay. This needs a global cursor hit test.
-- `onlySameWindow` for the Eventa contexts of the main, settings, and onboarding windows. See [Known limits](#known-limits).
+- `onlySameWindow` for the Eventa contexts of the other AIRI windows. See [Known limits](#known-limits).
 
 ### References
 

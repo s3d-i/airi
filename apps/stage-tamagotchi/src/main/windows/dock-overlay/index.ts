@@ -70,8 +70,8 @@ async function createDockOverlayWindow(params: { serverChannel: ServerChannel, i
     }))
   }
   catch (error) {
-    // A failed step can leave a destroyed window, for example after the abort.
-    // `destroy()` on that window can throw, and its error would replace the original error.
+    // A failed step can leave a destroyed window, for example after the abort. Without the `isDestroyed()` check,
+    // `destroy()` on that window can throw, and its error replaces the original error.
     destroyWindow()
     throw error
   }
