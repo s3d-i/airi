@@ -51,7 +51,7 @@ const appConfigSchema = object({
 
 type AppConfig = InferOutput<typeof appConfigSchema>
 
-function createDockOverlayWindow(overlayBase: string | { url: string } | { file: string }, preloadPath: string) {
+function createDockOverlayWindow(overlayBase: Parameters<typeof load>[1], preloadPath: string) {
   const overlayWindow = new BrowserWindow({
     title: 'AIRI Dock Overlay',
     width: 450,
@@ -115,7 +115,9 @@ export async function setupMainWindow(params: {
 
   const mainWindowConfig = getConfig().windows?.find(w => w.title === 'AIRI' && w.tag === 'main')
   const rendererRoot = resolve(getElectronMainDirname(), '..', 'renderer')
-  const dockOverlayBase = baseUrl(rendererRoot, 'dock-overlay.html')
+  const dockOverlayBase = withHashRoute(baseUrl(rendererRoot, 'dock-overlay.html'), '/', {
+    query: { 'synced-leader': 'false' },
+  })
   const preloadPath = join(dirname(fileURLToPath(import.meta.url)), '../preload/index.mjs')
   const dockOverlayWindow = createDockOverlayWindow(dockOverlayBase, preloadPath)
   const { context: dockOverlayContext } = createContext(ipcMain, dockOverlayWindow)

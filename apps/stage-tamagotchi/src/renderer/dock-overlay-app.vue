@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useElectronEventaContext, useElectronRelativeMouse } from '@proj-airi/electron-vueuse'
 import { Live2DScene } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
 import { useSettings } from '@proj-airi/stage-ui/stores/settings'
@@ -8,7 +9,6 @@ import { storeToRefs } from 'pinia'
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 
 import { dockOverlayThemeUpdated } from '../shared/eventa'
-import { useElectronEventaContext, useElectronRelativeMouse } from './composables/electron-vueuse'
 
 const settingsStore = useSettings()
 // Keeps the dark class on documentElement in step with the main window.
@@ -16,11 +16,6 @@ useTheme()
 const eventaContext = useElectronEventaContext()
 
 const {
-  live2dAutoBlinkEnabled,
-  live2dDisableFocus,
-  live2dForceAutoBlinkEnabled,
-  live2dIdleAnimationEnabled,
-  live2dShadowEnabled,
   stageModelRenderer,
   stageModelSelected,
   stageModelSelectedUrl,
@@ -39,7 +34,7 @@ watch(themeColorsHueDynamic, () => {
 const { width, height } = useWindowSize()
 const mouse = useElectronRelativeMouse({ initialValue: { x: width.value / 2, y: height.value / 2 } })
 
-const focusAt = computed(() => ({
+const cursorPosition = computed(() => ({
   x: mouse.x.value,
   y: mouse.y.value,
 }))
@@ -72,19 +67,15 @@ onMounted(async () => {
   <div :class="['h-full', 'w-full', 'overflow-hidden']">
     <Live2DScene
       v-if="stageModelRenderer === 'live2d'"
-      :focus-at="focusAt"
+      :cursor-position="cursorPosition"
       :model-src="stageModelSelectedUrl"
       :model-id="stageModelSelected"
-      :disable-focus-at="live2dDisableFocus"
       :theme-colors-hue="themeColorsHue"
       :theme-colors-hue-dynamic="themeColorsHueDynamic"
-      :live2d-idle-animation-enabled="live2dIdleAnimationEnabled"
-      :live2d-auto-blink-enabled="live2dAutoBlinkEnabled"
-      :live2d-force-auto-blink-enabled="live2dForceAutoBlinkEnabled"
-      :live2d-shadow-enabled="live2dShadowEnabled"
     />
     <ThreeScene
       v-else-if="stageModelRenderer === 'vrm'"
+      :model-id="stageModelSelected"
       :model-src="stageModelSelectedUrl"
     />
   </div>
