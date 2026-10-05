@@ -123,7 +123,7 @@ export class DockController {
       // No case where the ID filter misses the overlay is verified on Windows.
       // Source: Dock Mode PR #979.
       // Removal condition: a Windows test shows that the ID filter alone drops the overlay.
-      return !(candidate.ownerPid === process.pid && candidate.title === overlayTitle)
+      return candidate.ownerPid !== process.pid || candidate.title !== overlayTitle
     })
   }
 
