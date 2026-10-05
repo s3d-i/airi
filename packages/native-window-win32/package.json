@@ -1,5 +1,5 @@
 {
-  "name": "@proj-airi/win32-window-bindings",
+  "name": "@proj-airi/native-window-win32",
   "type": "commonjs",
   "version": "0.0.1",
   "private": true,
@@ -13,7 +13,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/moeru-ai/airi.git",
-    "directory": "packages/win32-window-bindings"
+    "directory": "packages/native-window-win32"
   },
   "main": "./index.js",
   "types": "./index.d.ts",
@@ -36,7 +36,7 @@
     "prepare": "node ./scripts/build-if-win32.mjs"
   },
   "napi": {
-    "name": "win32_window_bindings"
+    "name": "native_window_win32"
   },
   "dependencies": {
     "@node-rs/helper": "^1.6.0",

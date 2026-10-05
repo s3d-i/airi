@@ -1,5 +1,5 @@
 [package]
-name = "win32-window-bindings"
+name = "native-window-win32"
 version = "0.0.1"
 edition = "2021"
 license = "MIT"

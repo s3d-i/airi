@@ -1,4 +1,4 @@
-import type { QueryOptions as BindingQueryOptions, WindowInfo as BindingWindowInfo } from '@proj-airi/win32-window-bindings'
+import type { QueryOptions as BindingQueryOptions, WindowInfo as BindingWindowInfo } from '@proj-airi/native-window-win32'
 import type { Display, Rectangle } from 'electron'
 
 import type { WindowMeta, WindowTracker } from '../window-tracker'
@@ -27,7 +27,7 @@ function intersectsDisplay(bounds: Rectangle, displayBounds?: Rectangle): boolea
   return dx > 0 && dy > 0
 }
 
-type Win32Bindings = typeof import('@proj-airi/win32-window-bindings')
+type Win32Bindings = typeof import('@proj-airi/native-window-win32')
 
 const LIST_OPTS: BindingQueryOptions = { includeOwnerPid: true, includeTitle: true }
 const LIGHT_OPTS: BindingQueryOptions = { includeOwnerPid: false, includeTitle: false }
@@ -37,7 +37,7 @@ function loadNativeBindings(): Win32Bindings | undefined {
     return undefined
 
   try {
-    return require('@proj-airi/win32-window-bindings') as Win32Bindings
+    return require('@proj-airi/native-window-win32') as Win32Bindings
   }
   catch (err) {
     log.withError(err as Error).warn('Win32 bindings unavailable; falling back to Electron-only tracker')

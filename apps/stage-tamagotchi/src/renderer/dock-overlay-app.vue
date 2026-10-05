@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { Live2DScene } from '@proj-airi/stage-ui-live2d'
 import { ThreeScene } from '@proj-airi/stage-ui-three'
-import { useStageThemeSync } from '@proj-airi/stage-ui/composables'
 import { useSettings } from '@proj-airi/stage-ui/stores/settings'
+import { useTheme } from '@proj-airi/ui'
 import { useWindowSize } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 
 import { dockOverlayThemeUpdated } from '../shared/eventa'
 import { useElectronEventaContext, useElectronRelativeMouse } from './composables/electron-vueuse'
 
 const settingsStore = useSettings()
-useStageThemeSync()
+// Keeps the dark class on documentElement in step with the main window.
+useTheme()
 const eventaContext = useElectronEventaContext()
 
 const {
@@ -26,6 +27,14 @@ const {
   themeColorsHue,
   themeColorsHueDynamic,
 } = storeToRefs(settingsStore)
+
+watch(themeColorsHue, () => {
+  document.documentElement.style.setProperty('--chromatic-hue', themeColorsHue.value.toString())
+}, { immediate: true })
+
+watch(themeColorsHueDynamic, () => {
+  document.documentElement.classList.toggle('dynamic-hue', themeColorsHueDynamic.value)
+}, { immediate: true })
 
 const { width, height } = useWindowSize()
 const mouse = useElectronRelativeMouse({ initialValue: { x: width.value / 2, y: height.value / 2 } })

@@ -22,6 +22,9 @@ export interface DockControllerOptions {
 
 type NormalizedDockConfig = Required<DockConfig>
 
+/** Windows narrower or shorter than this (in DIP) are treated as tool/popup windows, not real occluders. */
+const MIN_REAL_WINDOW_DIMENSION = 60
+
 export class DockController {
   private readonly overlayWindow: BrowserWindow
   private readonly overlayIdSet: Set<string>
@@ -191,11 +194,15 @@ export class DockController {
     const isFullscreen = this.isFullscreen(meta, displayBounds)
     const realAbove = (await this.tracker.getWindowsAbove(meta.id)).filter(candidate => this.isRealWindow(candidate, displayBounds))
 
-    // On Win32 the native z-order probe tends to include one extra entry even when the
-    // target is already frontmost. Subtract one to align the “windows above” count.
-    // This will undercount when running on the Electron-only fallback (macOS/unsupported),
-    // which is acceptable because production assumes native bindings on Win32.
-    const adjustedAboveCount = Math.max(0, realAbove.length - 1)
+    // NOTICE:
+    // On Win32, the native z-order probe reports one extra window above the target, even when the target is frontmost.
+    // The code subtracts one only on win32. The Electron-only tracker on other platforms reports the count as it is.
+    // Root cause is not confirmed. The extra entry passes isRealWindow, so the filter above does not remove it.
+    // Source: windows_above in packages/native-window-win32/src/platform.rs, which walks GW_HWNDPREV up from the target.
+    // Removal condition: the native probe or isRealWindow drops the extra entry, and a frontmost target reports 0 windows above.
+    const adjustedAboveCount = process.platform === 'win32'
+      ? Math.max(0, realAbove.length - 1)
+      : realAbove.length
     const isFrontmost = adjustedAboveCount === 0
     const allowNonFrontmostVisibility = (this.config.showWhenNotFrontmost ?? defaultDockConfig.showWhenNotFrontmost)
       || !(this.config.hideWhenInactive ?? defaultDockConfig.hideWhenInactive)
@@ -307,7 +314,7 @@ export class DockController {
     if (!displayBounds) {
       return true
     }
-    const tooSmall = meta.bounds.width < 60 || meta.bounds.height < 60
+    const tooSmall = meta.bounds.width < MIN_REAL_WINDOW_DIMENSION || meta.bounds.height < MIN_REAL_WINDOW_DIMENSION
     const farOutside = meta.bounds.width === 0 || meta.bounds.height === 0
     const systemLayer = typeof meta.layer === 'number' && meta.layer > 0
     return !tooSmall && !farOutside && !systemLayer

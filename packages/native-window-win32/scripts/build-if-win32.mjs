@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { isWindows } from 'std-env'
 
 if (!isWindows) {
-  console.info('[win32-window-bindings] Skipping native build (platform is not win32)')
+  console.info('[native-window-win32] Skipping native build (platform is not win32)')
   process.exit(0)
 }
 
@@ -35,7 +35,7 @@ const result = looksLikePnpm
     )
 
 if (result.error) {
-  console.error('[win32-window-bindings] Failed to spawn `napi` CLI:', result.error)
+  console.error('[native-window-win32] Failed to spawn `napi` CLI:', result.error)
   process.exit(result.status ?? 1)
 }
 

@@ -63,7 +63,7 @@ mod platform {
 
   fn unsupported() -> Error {
     Error::from_reason(String::from(
-      "@proj-airi/win32-window-bindings is only available on Windows targets",
+      "@proj-airi/native-window-win32 is only available on Windows targets",
     ))
   }
 

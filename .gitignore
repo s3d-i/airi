@@ -95,7 +95,7 @@ components.d.ts
 **/vscode-airi/LICENSE
 
 # Native build artifacts
-packages/win32-window-bindings/**/*.node
+packages/native-window-win32/**/*.node
 
 # Make it easy for devenv users to override their local environment.
 # See: https://github.com/moeru-ai/airi/pull/110#discussion_r2024378953

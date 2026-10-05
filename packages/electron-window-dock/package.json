@@ -46,7 +46,7 @@
     "es-toolkit": "catalog:"
   },
   "optionalDependencies": {
-    "@proj-airi/win32-window-bindings": "workspace:*"
+    "@proj-airi/native-window-win32": "workspace:*"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.2",

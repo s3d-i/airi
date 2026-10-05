@@ -7,7 +7,7 @@ const sharedConfig: UserConfig = {
   external: [
     'electron',
     'vue',
-    '@proj-airi/win32-window-bindings',
+    '@proj-airi/native-window-win32',
   ],
   exports: true,
 }
