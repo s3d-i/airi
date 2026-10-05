@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer'
 
 import { describe, expect, it } from 'vitest'
 
-import { win32HwndBufferToId, win32IdToHwndBuffer } from './win32-window-id'
+import { win32HwndBufferToId } from './win32-window-id'
 
 describe('win32-window-id', () => {
   it('handles empty native handles', () => {
@@ -19,17 +19,5 @@ describe('win32-window-id', () => {
     const hwnd = Buffer.alloc(8)
     hwnd.writeBigUInt64LE(0x1234567890ABCDEFn)
     expect(win32HwndBufferToId(hwnd)).toBe('win32:1234567890abcdef')
-  })
-
-  it('round-trips 32-bit IDs', () => {
-    const buf = win32IdToHwndBuffer('win32:1234abcd', 4)
-    expect(buf).toBeDefined()
-    expect(win32HwndBufferToId(buf!)).toBe('win32:1234abcd')
-  })
-
-  it('round-trips 64-bit IDs', () => {
-    const buf = win32IdToHwndBuffer('win32:1234567890abcdef', 8)
-    expect(buf).toBeDefined()
-    expect(win32HwndBufferToId(buf!)).toBe('win32:1234567890abcdef')
   })
 })

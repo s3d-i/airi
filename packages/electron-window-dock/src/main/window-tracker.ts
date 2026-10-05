@@ -9,5 +9,4 @@ export interface WindowTracker {
   listWindows: () => Promise<WindowMeta[]>
   getWindowMeta: (windowId: string) => Promise<WindowMeta | undefined>
   getWindowsAbove: (windowId: string) => Promise<WindowMeta[]>
-  getFrontmostWindow: () => Promise<WindowMeta | undefined>
 }

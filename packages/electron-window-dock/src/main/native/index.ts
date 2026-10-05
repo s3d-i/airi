@@ -31,8 +31,4 @@ class NoopWindowTracker implements WindowTracker {
   async getWindowsAbove(): Promise<WindowMeta[]> {
     return []
   }
-
-  async getFrontmostWindow(): Promise<WindowMeta | undefined> {
-    return undefined
-  }
 }

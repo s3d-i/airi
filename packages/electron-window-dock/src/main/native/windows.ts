@@ -10,7 +10,7 @@ import { createRequire } from 'node:module'
 import { useLogg } from '@guiiai/logg'
 import { screen } from 'electron'
 
-import { collectElectronWindows, getFrontmostElectronWindow, getWindowsAboveElectronTarget } from './electron-fallback'
+import { collectElectronWindows, getWindowsAboveElectronTarget } from './electron-fallback'
 
 const log = useLogg('window-dock:win32').useGlobalConfig()
 
@@ -126,19 +126,6 @@ class Win32WindowTracker implements WindowTracker {
       return getWindowsAboveElectronTarget(windowId, await this.listWindows())
     }
   }
-
-  async getFrontmostWindow(): Promise<WindowMeta | undefined> {
-    if (!this.bindings)
-      return getFrontmostElectronWindow(await this.listWindows())
-
-    try {
-      return toWindowMeta(this.bindings.getForegroundWindow(LIGHT_OPTS))
-    }
-    catch (err) {
-      log.withError(err as Error).warn('Native frontmost lookup failed; falling back to Electron-only tracker')
-      return getFrontmostElectronWindow(await this.listWindows())
-    }
-  }
 }
 
 function convertWinRectToDip(rect: { left: number, top: number, right: number, bottom: number }): { bounds: Rectangle, displayBounds?: Rectangle } | undefined {
@@ -229,13 +216,5 @@ export class WindowsWindowTracker implements WindowTracker {
 
     const windows = await this.listWindows()
     return getWindowsAboveElectronTarget(windowId, windows)
-  }
-
-  async getFrontmostWindow(): Promise<WindowMeta | undefined> {
-    if (this.win32Tracker)
-      return this.win32Tracker.getFrontmostWindow()
-
-    const windows = await this.listWindows()
-    return getFrontmostElectronWindow(windows)
   }
 }

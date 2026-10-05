@@ -5,22 +5,12 @@ import process from 'node:process'
 import { app, BrowserWindow } from 'electron'
 
 import { getDisplayBounds } from '../display'
-
-const ELECTRON_PREFIX = 'electron:'
+import { ELECTRON_WINDOW_ID_PREFIX, toElectronWindowId } from '../window-ids'
 
 export function collectElectronWindows(): WindowMeta[] {
   return BrowserWindow.getAllWindows()
     .filter(window => !window.isDestroyed())
     .map(windowToMeta)
-}
-
-export function getFrontmostElectronWindow(windows?: WindowMeta[]): WindowMeta | undefined {
-  const focused = BrowserWindow.getFocusedWindow()
-  if (focused && !focused.isDestroyed()) {
-    return windowToMeta(focused)
-  }
-  const fallback = windows ?? collectElectronWindows()
-  return fallback.at(0)
 }
 
 export function getWindowsAboveElectronTarget(windowId: string, windows: WindowMeta[]): WindowMeta[] {
@@ -35,7 +25,7 @@ export function getWindowsAboveElectronTarget(windowId: string, windows: WindowM
     return [createExternalFrontmostMeta(target)]
   }
 
-  if (focused && !focused.isDestroyed() && toElectronId(focused.id) !== windowId) {
+  if (focused && !focused.isDestroyed() && toElectronWindowId(focused.id) !== windowId) {
     candidates.push(windowToMeta(focused))
   }
 
@@ -60,10 +50,10 @@ export function getWindowsAboveElectronTarget(windowId: string, windows: WindowM
   return Array.from(deduped.values())
 }
 
-export function windowToMeta(window: BrowserWindow): WindowMeta {
+function windowToMeta(window: BrowserWindow): WindowMeta {
   const bounds = window.getBounds()
   return {
-    id: toElectronId(window.id),
+    id: toElectronWindowId(window.id),
     title: window.getTitle(),
     appName: app.name,
     ownerPid: process.pid,
@@ -99,13 +89,9 @@ function resolveBrowserWindow(metaId: string): BrowserWindow | undefined {
 }
 
 function parseElectronId(windowId: string): number | undefined {
-  if (!windowId.startsWith(ELECTRON_PREFIX)) {
+  if (!windowId.startsWith(ELECTRON_WINDOW_ID_PREFIX)) {
     return undefined
   }
-  const raw = Number.parseInt(windowId.slice(ELECTRON_PREFIX.length), 10)
+  const raw = Number.parseInt(windowId.slice(ELECTRON_WINDOW_ID_PREFIX.length), 10)
   return Number.isFinite(raw) ? raw : undefined
-}
-
-function toElectronId(id: number): string {
-  return `${ELECTRON_PREFIX}${id}`
 }

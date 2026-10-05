@@ -54,10 +54,6 @@ export class DockController {
     this.config = this.normalizeConfig(options.config ?? defaultDockConfig)
   }
 
-  getTargetId(): string | undefined {
-    return this.targetId
-  }
-
   start(targetId: string): DockDebugState {
     if (this.isTargetOverlay(targetId)) {
       this.saveDebugState({ lastReason: 'overlay-target-blocked' })
