@@ -119,7 +119,7 @@ The main process validates each update with Valibot. An invalid update throws, a
 
 ## When to use
 
-- Use it in the AIRI Electron app to show AIRI on top of one window of another app on Windows.
+- On Windows, use it in the AIRI Electron app to show AIRI on top of one window of another app. This is the intended use. It is not verified on Windows.
 - Use it on macOS to show AIRI on top of another AIRI window.
 
 ## When not to use

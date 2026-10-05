@@ -24,12 +24,12 @@ const HRESULT_ENVVAR_NOT_FOUND: i32 = 0x800700cbu32 as i32; // ERROR_ENVVAR_NOT_
 /// Source: https://learn.microsoft.com/windows/win32/sysinfo/user-objects
 const MAX_Z_ORDER_WALK_STEPS: usize = 65_536;
 
-/// Convert a Win32 API call that returns an HWND into a Result.
-/// Some HWND-returning APIs (for example, GetWindow/GW_HWNDNEXT) legitimately return NULL
-/// when the iteration reaches the end, but the windows crate still surfaces that
-/// as an Err whose code is 0 (ERROR_SUCCESS). Treat that specific case as a
-/// successful "no window" sentinel rather than a hard failure so dock mode
-/// can gracefully fall back to Electron when the z-order is exhausted.
+/// Converts the result of a Win32 call that returns an HWND into a `Result`.
+/// GetWindow returns NULL when no window has the requested relation. The windows crate turns
+/// NULL into an `Err` with the thread error code from GetLastError(). For code 0
+/// (ERROR_SUCCESS) and the two codes in the NOTICE below, this function returns `Ok(NULL)`.
+/// [`walk_z_order`] stops at NULL, so `Ok(NULL)` only ends the walk. Each other `Err` becomes
+/// an error. Then `list_windows` and `windows_above` use the EnumWindows path.
 fn win_hwnd(
   result: WinResult<HWND>,
   name: &str,
@@ -38,12 +38,12 @@ fn win_hwnd(
     Ok(hwnd) => Ok(hwnd),
     // NOTICE:
     // This arm reads three error codes as "no more windows", not as a failure.
-    // PR #979 reports that GetWindow(GW_HWNDNEXT) often failed with 0x80070102 and 0x800700CB.
-    // Probable cause, not confirmed on Windows: GetWindow returns NULL at the end of the z-order
+    // The subject line of commit a7c95d1e2 says that GetWindow(GW_HWNDNEXT) "frequently throw
+    // HRESULT 0x80070102 and 0x800700CB". This report is not verified on Windows.
+    // Probable cause, not verified on Windows: GetWindow returns NULL at the end of the z-order
     // and does not reset the thread error code. The windows crate then builds the Err from
     // GetLastError(), which can still hold a code from an earlier call on this thread.
     // 0x80070102 is WAIT_TIMEOUT and 0x800700CB is ERROR_ENVVAR_NOT_FOUND.
-    // Window enumeration does not use either code, so they agree with this cause.
     // Source: GetWindow in windows-0.59.0 src/Windows/Win32/UI/WindowsAndMessaging/mod.rs,
     // Error::from_win32 in windows-result-0.3.4 src/error.rs, and the GetWindow return value at
     // https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-getwindow
@@ -64,9 +64,11 @@ fn win_hwnd(
   }
 }
 
-/// Collect HWNDs in top-to-bottom z-order using EnumWindows. EnumWindows order is stable enough
-/// for our purposes and avoids repeated GetWindow hops that can return transient errors on some
-/// Windows builds.
+/// Collects the top-level HWNDs with EnumWindows. The public functions use this path when a
+/// GetWindow walk fails. Microsoft documents EnumWindows as more reliable than a GetWindow loop
+/// (see [`walk_z_order`]). The code reads the result as z-order, top window first.
+/// That order is not verified on Windows. The transient GetWindow errors that the NOTICE in
+/// [`win_hwnd`] names are also not verified on Windows.
 fn enum_windows_handles() -> Result<Vec<HWND>> {
   extern "system" fn collect(
     hwnd: HWND,
@@ -198,7 +200,8 @@ fn windows_above_enum(
     return Ok(Vec::new());
   };
 
-  // EnumWindows returns top-most first. Windows above target are those before its index.
+  // The windows above the target are the windows before it in the list. This expects the
+  // EnumWindows order to be the z-order, top window first. That order is not verified on Windows.
   let mut seen = HashSet::new();
   let mut results = Vec::new();
   for hwnd in handles.into_iter().take(pos) {

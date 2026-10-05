@@ -84,11 +84,12 @@ When `clickThrough` is `true`, the overlay calls `setIgnoreMouseEvents(true, { f
 
 - The tracker uses `listWindows`, `getWindow`, `getWindowsAbove`, and `getForegroundWindow` of `@proj-airi/native-window-win32`.
 - It converts each rect from physical pixels to DIP with `screen.screenToDipRect`.
-- The z-order walk drops each window of this process. AIRI windows, for example the always-on-top main window, do not hide the overlay.
+- The z-order walk drops each window of this process. Thus with the binding, AIRI windows, for example the always-on-top main window, do not count as windows above the target. This is not verified on Windows.
 - If the target is the foreground window, the tracker reports no windows above it. Then the target counts as frontmost, even when the walk reports other windows above it.
 - At debug level, the tracker logs the owner PID, the title, and the extended style of each window that the walk reports above the target. It logs again only when the list changes. The app sets the global log level to `Log`, so these logs do not show by default.
 - The first tracker call loads the binding. If the load fails, the tracker logs one warning and uses the Electron-only fallback until the app quits.
 - If a call to the binding fails, the tracker logs a warning and uses the fallback for that call.
+- The fallback does not drop AIRI windows. The focused AIRI window and the visible always-on-top AIRI windows count as windows above the target, and they can hide the overlay.
 
 The binding is a native build. The `build` script of the binding skips the native build when `cargo --version` fails. Then the app has no binding, and Dock Mode uses the Electron-only fallback. For the build steps, the CI variable `AIRI_REQUIRE_NATIVE_WINDOW_WIN32`, and the packaging rules, see [`packages/native-window-win32/README.md`](../packages/native-window-win32/README.md).
 
