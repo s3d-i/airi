@@ -28,7 +28,7 @@ const status = ref<string>()
 const filterOnScreenOnly = ref(true)
 const autoRefreshTargets = ref(true)
 const targetRefreshIntervalMs = ref(1000)
-/** The shortest refresh interval of the window list. The number field has the same minimum. */
+/** The shortest refresh interval of the window list. The description of the number field shows it. */
 const MIN_TARGET_REFRESH_INTERVAL_MS = 300
 
 const MIN_VIEWPORT_SPAN_PERCENT = 1
