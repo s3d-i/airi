@@ -98,6 +98,7 @@ export const windowDockListTargets = defineInvokeEventa<WindowTargetSummary[], v
 export const windowDockStart = defineInvokeEventa<DockDebugState, StartDockRequest>('eventa:invoke:electron:window-dock:start')
 export const windowDockStop = defineInvokeEventa<DockDebugState, void>('eventa:invoke:electron:window-dock:stop')
 export const windowDockGetDebugState = defineInvokeEventa<DockDebugState, void>('eventa:invoke:electron:window-dock:get-debug-state')
+export const windowDockGetConfig = defineInvokeEventa<Required<DockConfig>, void>('eventa:invoke:electron:window-dock:get-config')
 export const windowDockSetConfig = defineInvokeEventa<DockDebugState, DockConfig>('eventa:invoke:electron:window-dock:set-config')
 
 export const windowDock = {
@@ -105,5 +106,6 @@ export const windowDock = {
   start: windowDockStart,
   stop: windowDockStop,
   getDebugState: windowDockGetDebugState,
+  getConfig: windowDockGetConfig,
   setConfig: windowDockSetConfig,
 }

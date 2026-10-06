@@ -8,7 +8,7 @@ import process from 'node:process'
 import { useLogg } from '@guiiai/logg'
 import { merge } from '@moeru/std'
 import { screen } from 'electron'
-import { boolean, check, integer, maxValue, minValue, number, object, parse, partial, pipe } from 'valibot'
+import { boolean, check, getDotPath, integer, maxValue, minValue, number, object, partial, pipe, safeParse } from 'valibot'
 
 import { defaultDockConfig } from '..'
 import { getOverlayWindowIds } from './window-ids'
@@ -200,11 +200,24 @@ export class DockController {
 
   /**
    * Merges a config update into the current config. The next tick uses it.
-   * Throws a `ValiError` for an invalid update and keeps the current config.
+   * For an invalid update, it keeps the current config and throws an error. The message names each invalid field,
+   * for example `activeIntervalMs: Invalid value: Expected >=16 but received 5`.
    */
   updateConfig(input: unknown): DockDebugState {
-    this.config = merge(this.config, parse(dockConfigUpdateSchema, input))
+    const result = safeParse(dockConfigUpdateSchema, input)
+    if (!result.success) {
+      // An issue of the whole update, for example an update that is not an object, has no path.
+      const messages = result.issues.map(issue => `${getDotPath(issue) ?? 'config'}: ${issue.message}`)
+      throw new Error(messages.join('\n'))
+    }
+
+    this.config = merge(this.config, result.output)
     return this.getDebugState()
+  }
+
+  /** Returns a copy of the current config. */
+  getConfig(): Required<DockConfig> {
+    return { ...this.config, viewport: { ...this.config.viewport } }
   }
 
   getDebugState(): DockDebugState {

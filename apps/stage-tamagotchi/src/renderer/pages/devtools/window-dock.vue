@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import type { DockConfig, DockDebugState, WindowTargetSummary } from '@proj-airi/electron-window-dock'
 
+import { errorMessageFrom } from '@moeru/std'
 import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
 import { defaultDockConfig, windowDock } from '@proj-airi/electron-window-dock'
 import { Button, FieldCheckbox, FieldInput, FieldRange } from '@proj-airi/ui'
+import { watchDebounced } from '@vueuse/core'
 import { clamp } from 'es-toolkit/math'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { toast } from 'vue-sonner'
 
 const fetchTargets = useElectronEventaInvoke(windowDock.listTargets)
 const beginDock = useElectronEventaInvoke(windowDock.start)
 const endDock = useElectronEventaInvoke(windowDock.stop)
+const readConfig = useElectronEventaInvoke(windowDock.getConfig)
 const updateConfig = useElectronEventaInvoke(windowDock.setConfig)
 const readDebugState = useElectronEventaInvoke(windowDock.getDebugState)
 
@@ -36,7 +40,18 @@ function createDefaultConfig(): Required<DockConfig> {
   }
 }
 
+/**
+ * The time after the last option edit before the page applies the options.
+ * Thus a slider drag or a typed number sends one update, not one update for each step.
+ */
+const APPLY_DELAY_MS = 300
+/** The ID of the toast for apply results. A new result replaces the previous toast, so fast edits do not stack toasts. */
+const APPLY_TOAST_ID = 'window-dock-options'
+
+/** The option fields. Each edit applies after {@link APPLY_DELAY_MS}. */
 const config = reactive<Required<DockConfig>>(createDefaultConfig())
+/** The options that the main process runs, as JSON. The page sends an update only when the fields differ from it. */
+let appliedConfigJson = JSON.stringify(config)
 
 const debugPollHandle = ref<number>()
 const targetPollHandle = ref<number>()
@@ -155,8 +170,9 @@ async function startDock() {
   status.value = undefined
 
   try {
-    // Push current UI settings so the controller starts with the chosen viewport/visibility.
-    await updateConfig({ ...config, viewport: { ...config.viewport } })
+    // An edit inside the apply delay applies before the session starts.
+    // If the main process rejects it, the toast shows the reason, and the session uses the running options.
+    await applyConfig()
     debugState.value = await beginDock({ targetId: selectedTargetId.value })
   }
   catch (err) {
@@ -175,13 +191,39 @@ async function stopDock() {
   }
 }
 
-async function pushConfig() {
+/**
+ * Reads the running options into the fields. Without this, the fields show the defaults after the page opens again,
+ * and the first edit sends the defaults for all other options.
+ */
+async function loadConfig() {
   try {
-    debugState.value = await updateConfig({ ...config, viewport: { ...config.viewport } })
+    Object.assign(config, await readConfig())
   }
-  catch (err) {
-    console.error(err)
-    status.value = 'Failed to update config.'
+  catch (error) {
+    // The fields keep the defaults. An edit then sends the defaults with the edit.
+    toast.error('Cannot read the dock options', { id: APPLY_TOAST_ID, description: errorMessageFrom(error) ?? 'Unknown error' })
+  }
+  appliedConfigJson = JSON.stringify(config)
+}
+
+/**
+ * Sends the option fields to the main process when they differ from the running options.
+ * The main process validates the whole update. If it rejects the update, the running options do not change,
+ * and the toast shows the validation error. The fields keep the invalid value, so that the user can correct it.
+ */
+async function applyConfig() {
+  const json = JSON.stringify(config)
+  if (json === appliedConfigJson)
+    return
+
+  try {
+    // A reactive proxy cannot go through IPC, so the update is a plain copy.
+    debugState.value = await updateConfig({ ...config, viewport: { ...config.viewport } })
+    appliedConfigJson = json
+    toast.success('Dock options applied', { id: APPLY_TOAST_ID })
+  }
+  catch (error) {
+    toast.error('Dock options not applied', { id: APPLY_TOAST_ID, description: errorMessageFrom(error) ?? 'Unknown error' })
   }
 }
 
@@ -226,7 +268,10 @@ watch([autoRefreshTargets, targetRefreshIntervalMs], () => {
   startTargetPolling()
 })
 
+watchDebounced(config, applyConfig, { debounce: APPLY_DELAY_MS, deep: true })
+
 onMounted(() => {
+  loadConfig()
   refreshTargets()
   refreshDebugState()
   startDebugPolling()
@@ -397,6 +442,9 @@ onBeforeUnmount(() => {
           <div :class="['mb-2', 'text-sm', 'font-semibold']">
             Polling config
           </div>
+          <div :class="['mb-3', 'text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
+            Each option applies automatically after an edit. A toast shows the result.
+          </div>
           <div :class="['flex', 'flex-col', 'gap-4']">
             <div :class="['grid', 'grid-cols-1', 'gap-4', 'sm:grid-cols-3']">
               <FieldInput
@@ -422,12 +470,6 @@ onBeforeUnmount(() => {
               v-model="config.clickThrough"
               label="Click-through"
               description="Mouse clicks go through AIRI to the target window."
-            />
-            <Button
-              label="Apply"
-              color="primary"
-              variant="primary"
-              @click="pushConfig"
             />
           </div>
         </div>

@@ -44,6 +44,7 @@ export function setupWindowDock(options: WindowDockOptions): WindowDock {
   defineInvokeHandler(context, windowDock.start, ({ targetId }) => controller.start(targetId))
   defineInvokeHandler(context, windowDock.stop, () => controller.stop())
   defineInvokeHandler(context, windowDock.getDebugState, () => controller.getDebugState())
+  defineInvokeHandler(context, windowDock.getConfig, () => controller.getConfig())
   defineInvokeHandler(context, windowDock.setConfig, config => controller.updateConfig(config))
 
   return {

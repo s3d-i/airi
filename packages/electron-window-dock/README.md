@@ -76,13 +76,14 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 | `windowDock.start` | `{ targetId }` | `DockDebugState`. Starts a session, or changes the target of the current session. |
 | `windowDock.stop` | None | `DockDebugState`. Ends the session and destroys the overlay window. |
 | `windowDock.getDebugState` | None | `DockDebugState` |
+| `windowDock.getConfig` | None | `Required<DockConfig>`, a copy of the running config. |
 | `windowDock.setConfig` | `DockConfig`, any subset of the fields | `DockDebugState`. Rejects an update with a value outside the limits. |
 
 The entry also exports `defaultDockConfig` and the types `DockConfig`, `DockViewport`, `DockDebugState`, `DockModeState`, and `WindowTargetSummary`.
 
 ### Config
 
-The main process validates each update with Valibot. An invalid update throws, and the current config stays.
+The main process validates each update with Valibot. An invalid update throws, and the current config stays. The error message names each invalid field, for example `activeIntervalMs: Invalid value: Expected >=16 but received 5`.
 
 | Field | Default | Limits | Effect |
 | --- | --- | --- | --- |

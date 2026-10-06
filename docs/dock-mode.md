@@ -116,7 +116,8 @@ There is no tracker. The target list is empty, and Dock Mode cannot start a usef
 | `windowDock.start` | `{ targetId }` | `DockDebugState` |
 | `windowDock.stop` | None | `DockDebugState` |
 | `windowDock.getDebugState` | None | `DockDebugState` |
-| `windowDock.setConfig` | `DockConfig`, any subset | `DockDebugState`, or an error for an invalid value |
+| `windowDock.getConfig` | None | `Required<DockConfig>`, a copy of the running config |
+| `windowDock.setConfig` | `DockConfig`, any subset | `DockDebugState`, or an error that names each invalid field |
 
 The handlers use an Eventa context without a window. Any renderer can call them, and the reply goes to the caller.
 
@@ -124,7 +125,10 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 
 - Lists the targets, with an on-screen filter and an automatic refresh.
 - Starts and stops Dock Mode, and shows the debug state: state, poll interval, reason, windows above, target, and last update.
-- Sets the poll intervals, the padding, click-through, the viewport, and the visibility options.
+- Sets the poll intervals, the padding, click-through, the viewport, and the visibility option.
+- Reads the running config with `windowDock.getConfig` when it opens, so the fields show the running values.
+- Applies an option edit through `windowDock.setConfig` 300 ms after the last change. There is no Apply button.
+- Shows a toast for each result. If the main process rejects the update, the running config does not change, and the toast shows the validation error.
 - Uses the shared renderer Eventa context of `@proj-airi/electron-vueuse`.
 
 ### Testing

@@ -7,6 +7,7 @@ import { Buffer } from 'node:buffer'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { defaultDockConfig } from '..'
 import { DockController } from './controller'
 
 vi.mock('electron', () => ({
@@ -521,12 +522,14 @@ describe('dockController', () => {
       controller.updateConfig({ padding: 20 })
 
       // An empty number field on the devtools page sends an empty string.
-      expect(() => controller.updateConfig({ activeIntervalMs: '' })).toThrow()
+      expect(() => controller.updateConfig({ activeIntervalMs: '' })).toThrow('activeIntervalMs: Invalid type')
+      expect(() => controller.updateConfig({ activeIntervalMs: 5 })).toThrow('activeIntervalMs: Invalid value: Expected >=16 but received 5')
       expect(() => controller.updateConfig({ hiddenIntervalMs: 0 })).toThrow()
       expect(() => controller.updateConfig({ burstIntervalMs: Number.POSITIVE_INFINITY })).toThrow()
       expect(() => controller.updateConfig({ burstTicks: 1.5 })).toThrow()
       expect(() => controller.updateConfig({ padding: -1 })).toThrow()
-      expect(() => controller.updateConfig({ viewport: { left: 0.8, right: 0.2, top: 0, bottom: 1 } })).toThrow()
+      expect(() => controller.updateConfig({ viewport: { left: 0.8, right: 0.2, top: 0, bottom: 1 } })).toThrow('viewport: The viewport must have')
+      expect(controller.getConfig()).toEqual({ ...defaultDockConfig, padding: 20 })
 
       await startAndTick(controller, 'target')
 
