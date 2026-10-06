@@ -3,7 +3,7 @@ import type { DockConfig, DockDebugState, WindowTargetSummary } from '@proj-airi
 
 import { useElectronEventaInvoke } from '@proj-airi/electron-vueuse'
 import { defaultDockConfig, windowDock } from '@proj-airi/electron-window-dock'
-import { FieldCheckbox, FieldRange } from '@proj-airi/ui'
+import { Button, FieldCheckbox, FieldInput, FieldRange } from '@proj-airi/ui'
 import { clamp } from 'es-toolkit/math'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 
@@ -27,17 +27,16 @@ const targetRefreshIntervalMs = ref(1000)
 /** The shortest refresh interval of the window list. The number field has the same minimum. */
 const MIN_TARGET_REFRESH_INTERVAL_MS = 300
 
-const defaultViewport = { ...defaultDockConfig.viewport } as const
 const MIN_VIEWPORT_SPAN_PERCENT = 1
 
-function createDefaultConfig(): DockConfig {
+function createDefaultConfig(): Required<DockConfig> {
   return {
     ...defaultDockConfig,
     viewport: { ...defaultDockConfig.viewport },
   }
 }
 
-const config = reactive<DockConfig>(createDefaultConfig())
+const config = reactive<Required<DockConfig>>(createDefaultConfig())
 
 const debugPollHandle = ref<number>()
 const targetPollHandle = ref<number>()
@@ -45,7 +44,7 @@ const targetPollHandle = ref<number>()
 const clampPercent = (value?: number) => clamp(Math.round(value ?? 0), 0, 100)
 
 function updateViewportPercent(partial: Partial<{ left: number, right: number, top: number, bottom: number }>) {
-  const current = config.viewport ?? { ...defaultViewport }
+  const current = config.viewport
   const next = {
     left: clampPercent(partial.left ?? current.left * 100),
     right: clampPercent(partial.right ?? current.right * 100),
@@ -71,22 +70,22 @@ function updateViewportPercent(partial: Partial<{ left: number, right: number, t
 }
 
 const horizontalStart = computed({
-  get: () => Math.round((config.viewport?.left ?? defaultViewport.left) * 100),
+  get: () => Math.round(config.viewport.left * 100),
   set: value => updateViewportPercent({ left: value }),
 })
 
 const horizontalEnd = computed({
-  get: () => Math.round((config.viewport?.right ?? defaultViewport.right) * 100),
+  get: () => Math.round(config.viewport.right * 100),
   set: value => updateViewportPercent({ right: value }),
 })
 
 const verticalStart = computed({
-  get: () => Math.round((config.viewport?.top ?? defaultViewport.top) * 100),
+  get: () => Math.round(config.viewport.top * 100),
   set: value => updateViewportPercent({ top: value }),
 })
 
 const verticalEnd = computed({
-  get: () => Math.round((config.viewport?.bottom ?? defaultViewport.bottom) * 100),
+  get: () => Math.round(config.viewport.bottom * 100),
   set: value => updateViewportPercent({ bottom: value }),
 })
 
@@ -96,13 +95,6 @@ const viewportPreviewStyle = computed(() => ({
   top: `${verticalStart.value}%`,
   bottom: `${100 - verticalEnd.value}%`,
 }))
-
-const hideWhenNotFrontmost = computed({
-  get: () => config.hideWhenNotFrontmost ?? defaultDockConfig.hideWhenNotFrontmost,
-  set: (value) => {
-    config.hideWhenNotFrontmost = value
-  },
-})
 
 function formatPercent(value: number) {
   return `${Math.round(value)}%`
@@ -118,13 +110,11 @@ function applyTargetFilter(list: WindowTargetSummary[]) {
   }
 }
 
-async function refreshTargets(options?: { silent?: boolean } | Event) {
+async function refreshTargets(options?: { silent?: boolean }) {
   if (isRefreshingTargets.value)
     return
 
-  const silent = typeof options === 'object' && options !== null && 'silent' in options
-    ? (options as { silent?: boolean }).silent === true
-    : false
+  const silent = options?.silent === true
 
   if (!silent) {
     isLoading.value = true
@@ -166,7 +156,7 @@ async function startDock() {
 
   try {
     // Push current UI settings so the controller starts with the chosen viewport/visibility.
-    await updateConfig({ ...config, viewport: { ...defaultViewport, ...config.viewport } })
+    await updateConfig({ ...config, viewport: { ...config.viewport } })
     debugState.value = await beginDock({ targetId: selectedTargetId.value })
   }
   catch (err) {
@@ -187,7 +177,7 @@ async function stopDock() {
 
 async function pushConfig() {
   try {
-    debugState.value = await updateConfig({ ...config, viewport: { ...defaultViewport, ...config.viewport } })
+    debugState.value = await updateConfig({ ...config, viewport: { ...config.viewport } })
   }
   catch (err) {
     console.error(err)
@@ -252,78 +242,48 @@ onBeforeUnmount(() => {
 <template>
   <div :class="['flex', 'flex-col', 'gap-4', 'text-neutral-500', 'dark:text-neutral-300']">
     <div :class="['flex', 'items-center', 'gap-3', 'flex-wrap']">
-      <button
-        :class="[
-          'rounded-lg', 'px-3', 'py-2',
-          'bg-primary-500/90', 'text-white', 'font-semibold',
-          'hover:bg-primary-500', 'transition-colors',
-          'disabled:opacity-60', 'disabled:cursor-not-allowed',
-        ]"
+      <Button
+        label="Start Dock"
+        icon="i-solar:play-line-duotone"
+        color="primary"
+        variant="primary"
         :disabled="isLoading || !selectedTargetId"
         @click="startDock"
-      >
-        Start Dock
-      </button>
-      <button
-        :class="[
-          'rounded-lg', 'px-3', 'py-2',
-          'border', 'border-neutral-300/60', 'bg-neutral-50/60',
-          'hover:border-neutral-400', 'hover:bg-neutral-50/80',
-          'dark:border-neutral-700', 'dark:bg-neutral-900/70', 'dark:hover:border-neutral-500',
-        ]"
+      />
+      <Button
+        label="Stop"
+        icon="i-solar:stop-line-duotone"
         @click="stopDock"
-      >
-        Stop
-      </button>
-      <button
-        :class="[
-          'rounded-lg', 'px-3', 'py-2',
-          'border', 'border-neutral-300/60', 'bg-neutral-50/60',
-          'hover:border-neutral-400', 'hover:bg-neutral-50/80',
-          'dark:border-neutral-700', 'dark:bg-neutral-900/70', 'dark:hover:border-neutral-500',
-        ]"
+      />
+      <Button
+        :label="isLoading ? 'Refreshing…' : 'Refresh targets'"
+        icon="i-solar:refresh-line-duotone"
         :disabled="isLoading"
-        @click="refreshTargets"
-      >
-        {{ isLoading ? 'Refreshing…' : 'Refresh targets' }}
-      </button>
+        @click="refreshTargets()"
+      />
       <div v-if="status" :class="['text-sm', 'text-amber-500']">
         {{ status }}
       </div>
     </div>
 
-    <div :class="['flex', 'flex-wrap', 'items-center', 'gap-4', 'text-sm']">
-      <label :class="['flex', 'items-center', 'gap-2']">
-        <input
-          v-model="filterOnScreenOnly"
-          type="checkbox"
-          :class="['h-4', 'w-4']"
-        >
-        <span>Only show on-screen windows</span>
-      </label>
-      <label :class="['flex', 'items-center', 'gap-2']">
-        <input
-          v-model="autoRefreshTargets"
-          type="checkbox"
-          :class="['h-4', 'w-4']"
-        >
-        <span>Auto refresh window list</span>
-      </label>
-      <label :class="['flex', 'items-center', 'gap-2']">
-        <span :class="['text-2xs', 'text-neutral-500']">Interval (ms)</span>
-        <input
-          v-model.number="targetRefreshIntervalMs"
-          type="number"
-          :min="MIN_TARGET_REFRESH_INTERVAL_MS"
-          step="100"
-          :disabled="!autoRefreshTargets"
-          :class="[
-            'w-24', 'rounded-lg', 'border', 'border-neutral-300/70', 'bg-white/80', 'px-2', 'py-1.5',
-            'disabled:opacity-60',
-            'dark:border-neutral-700', 'dark:bg-neutral-950/60',
-          ]"
-        >
-      </label>
+    <div :class="['grid', 'grid-cols-1', 'gap-4', 'md:grid-cols-3']">
+      <FieldCheckbox
+        v-model="filterOnScreenOnly"
+        label="Only on-screen windows"
+        description="Leaves hidden and minimized windows out of the list."
+      />
+      <FieldCheckbox
+        v-model="autoRefreshTargets"
+        label="Auto refresh"
+        description="Reads the window list again at the interval."
+      />
+      <FieldInput
+        v-model="targetRefreshIntervalMs"
+        type="number"
+        label="Refresh interval (ms)"
+        :description="`At least ${MIN_TARGET_REFRESH_INTERVAL_MS} ms.`"
+        :disabled="!autoRefreshTargets"
+      />
     </div>
 
     <div :class="['grid', 'grid-cols-1', 'gap-3', 'md:grid-cols-2']">
@@ -437,65 +397,39 @@ onBeforeUnmount(() => {
           <div :class="['mb-2', 'text-sm', 'font-semibold']">
             Polling config
           </div>
-          <div :class="['grid', 'grid-cols-2', 'gap-2', 'text-sm']">
-            <label :class="['flex', 'flex-col', 'gap-1']">
-              <span :class="['text-2xs', 'text-neutral-500']">Active (ms)</span>
-              <input
-                v-model.number="config.activeIntervalMs"
+          <div :class="['flex', 'flex-col', 'gap-4']">
+            <div :class="['grid', 'grid-cols-1', 'gap-4', 'sm:grid-cols-3']">
+              <FieldInput
+                v-model="config.activeIntervalMs"
                 type="number"
-                min="16"
-                step="10"
-                :class="[
-                  'rounded-lg', 'border', 'border-neutral-300/70', 'bg-white/80', 'px-3', 'py-2',
-                  'dark:border-neutral-700', 'dark:bg-neutral-950/60',
-                ]"
-              >
-            </label>
-            <label :class="['flex', 'flex-col', 'gap-1']">
-              <span :class="['text-2xs', 'text-neutral-500']">Hidden (ms)</span>
-              <input
-                v-model.number="config.hiddenIntervalMs"
+                label="Active (ms)"
+                description="16 to 60000."
+              />
+              <FieldInput
+                v-model="config.hiddenIntervalMs"
                 type="number"
-                min="100"
-                step="10"
-                :class="[
-                  'rounded-lg', 'border', 'border-neutral-300/70', 'bg-white/80', 'px-3', 'py-2',
-                  'dark:border-neutral-700', 'dark:bg-neutral-950/60',
-                ]"
-              >
-            </label>
-            <label :class="['flex', 'flex-col', 'gap-1']">
-              <span :class="['text-2xs', 'text-neutral-500']">Padding (px)</span>
-              <input
-                v-model.number="config.padding"
+                label="Hidden (ms)"
+                description="100 to 60000."
+              />
+              <FieldInput
+                v-model="config.padding"
                 type="number"
-                min="0"
-                step="1"
-                :class="[
-                  'rounded-lg', 'border', 'border-neutral-300/70', 'bg-white/80', 'px-3', 'py-2',
-                  'dark:border-neutral-700', 'dark:bg-neutral-950/60',
-                ]"
-              >
-            </label>
-          </div>
-          <label :class="['mt-2', 'flex', 'items-center', 'gap-2', 'text-sm']">
-            <input
+                label="Padding (px)"
+                description="0 to 500."
+              />
+            </div>
+            <FieldCheckbox
               v-model="config.clickThrough"
-              type="checkbox"
-              :class="['h-4', 'w-4']"
-            >
-            <span>Enable click-through</span>
-          </label>
-          <button
-            :class="[
-              'mt-3', 'rounded-lg', 'px-3', 'py-2',
-              'bg-primary-500/90', 'text-white', 'font-semibold',
-              'hover:bg-primary-500', 'transition-colors',
-            ]"
-            @click="pushConfig"
-          >
-            Apply
-          </button>
+              label="Click-through"
+              description="Mouse clicks go through AIRI to the target window."
+            />
+            <Button
+              label="Apply"
+              color="primary"
+              variant="primary"
+              @click="pushConfig"
+            />
+          </div>
         </div>
 
         <div :class="['rounded-xl', 'border', 'border-neutral-200/70', 'bg-neutral-50/60', 'p-4', 'dark:border-neutral-800', 'dark:bg-neutral-900/60']">
@@ -577,7 +511,7 @@ onBeforeUnmount(() => {
 
           <div :class="['mt-3', 'rounded-lg', 'border', 'border-neutral-200/70', 'bg-white/50', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/30']">
             <FieldCheckbox
-              v-model="hideWhenNotFrontmost"
+              v-model="config.hideWhenNotFrontmost"
               label="Hide when the target is not frontmost"
               description="A hidden, minimized, or fullscreen target always hides AIRI, whatever this option is."
             />
