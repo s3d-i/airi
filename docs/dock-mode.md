@@ -52,7 +52,7 @@ Each tick reads the target. Then it applies the first rule that matches:
 5. If a real window is above the target, the overlay hides. The state is `docking-attached-hidden`.
 6. In all other cases, the overlay moves to the viewport rect of the target. It goes always on top and shows without focus.
 
-Rule 5 does not apply when `showWhenNotFrontmost` is `true` or `hideWhenInactive` is `false`.
+Rule 5 applies only when `hideWhenNotFrontmost` is `true`, the default. Rules 3 and 4 apply with either value.
 
 A real window above the target is not the overlay, not minimized, and on screen. It is at least 60 by 60 DIP, and its layer is 0 or not set.
 

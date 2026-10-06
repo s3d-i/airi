@@ -66,8 +66,7 @@ const dockConfigUpdateSchema = partial(object({
   burstTicks: pipe(number(), integer(), minValue(0), maxValue(100)),
   clickThrough: boolean(),
   padding: pipe(number(), minValue(0), maxValue(500)),
-  hideWhenInactive: boolean(),
-  showWhenNotFrontmost: boolean(),
+  hideWhenNotFrontmost: boolean(),
   viewport: pipe(
     object({ left: viewportEdgeSchema, right: viewportEdgeSchema, top: viewportEdgeSchema, bottom: viewportEdgeSchema }),
     check(viewport => viewport.left < viewport.right && viewport.top < viewport.bottom, 'The viewport must have left < right and top < bottom.'),
@@ -392,8 +391,7 @@ export class DockController {
     }
 
     const isFrontmost = windowsAbove === 0
-    const showWhenNotFrontmost = this.config.showWhenNotFrontmost || !this.config.hideWhenInactive
-    if (!isFrontmost && !showWhenNotFrontmost) {
+    if (!isFrontmost && this.config.hideWhenNotFrontmost) {
       this.state = 'docking-attached-hidden'
       this.hideOverlay(overlay)
       this.saveDebugState({ lastReason: 'not-frontmost', lastMeta: meta, windowsAbove, pollIntervalMs: this.config.hiddenIntervalMs, lastUpdatedAt: now })

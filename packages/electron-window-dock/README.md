@@ -92,8 +92,7 @@ The main process validates each update with Valibot. An invalid update throws, a
 | `burstTicks` | `3` | Integer, 0 to 100 | The number of ticks at `burstIntervalMs`. |
 | `clickThrough` | `true` | | If `true`, mouse events go through the overlay. |
 | `padding` | `0` | 0 to 500 DIP | The space added on each side of the viewport rect. |
-| `hideWhenInactive` | `true` | | If `false`, the result is the same as `showWhenNotFrontmost: true`. |
-| `showWhenNotFrontmost` | `false` | | If `true`, the overlay also shows when other windows cover the target. |
+| `hideWhenNotFrontmost` | `true` | | If `true`, the overlay hides while a window is above the target. A hidden, minimized, or fullscreen target hides the overlay with either value. |
 | `viewport` | `{ left: 0, right: 1, top: 0, bottom: 1 }` | Each edge 0 to 1, `left < right`, `top < bottom` | A rect inside the target, as fractions of the target size. |
 
 ### Sessions and states

@@ -41,13 +41,11 @@ export interface DockConfig {
   clickThrough?: boolean
   /** The space added on each side of the viewport rect, from 0 to 500 DIP. */
   padding?: number
-  /** If false, the overlay also shows when the target is not frontmost, the same as `showWhenNotFrontmost`. */
-  hideWhenInactive?: boolean
   /**
-   * If true, keep the overlay visible even when the target window is not frontmost.
-   * Fullscreen/hidden/minimized checks still apply.
+   * If true, the overlay hides while a window is above the target. If false, the overlay stays on a covered target.
+   * A hidden, minimized, or fullscreen target hides the overlay with either value.
    */
-  showWhenNotFrontmost?: boolean
+  hideWhenNotFrontmost?: boolean
   /** Restricts the overlay to a rect inside the target window. */
   viewport?: DockViewport
 }
@@ -59,8 +57,7 @@ export const defaultDockConfig: Required<DockConfig> = {
   burstTicks: 3,
   clickThrough: true,
   padding: 0,
-  hideWhenInactive: true,
-  showWhenNotFrontmost: false,
+  hideWhenNotFrontmost: true,
   viewport: {
     left: 0,
     right: 1,

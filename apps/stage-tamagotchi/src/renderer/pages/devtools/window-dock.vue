@@ -97,10 +97,10 @@ const viewportPreviewStyle = computed(() => ({
   bottom: `${100 - verticalEnd.value}%`,
 }))
 
-const showWhenNotFrontmost = computed({
-  get: () => config.showWhenNotFrontmost ?? false,
+const hideWhenNotFrontmost = computed({
+  get: () => config.hideWhenNotFrontmost ?? defaultDockConfig.hideWhenNotFrontmost,
   set: (value) => {
-    config.showWhenNotFrontmost = value
+    config.hideWhenNotFrontmost = value
   },
 })
 
@@ -486,14 +486,6 @@ onBeforeUnmount(() => {
             >
             <span>Enable click-through</span>
           </label>
-          <label :class="['mt-1', 'flex', 'items-center', 'gap-2', 'text-sm']">
-            <input
-              v-model="config.hideWhenInactive"
-              type="checkbox"
-              :class="['h-4', 'w-4']"
-            >
-            <span>Hide overlay when target is not frontmost/fullscreen</span>
-          </label>
           <button
             :class="[
               'mt-3', 'rounded-lg', 'px-3', 'py-2',
@@ -511,7 +503,7 @@ onBeforeUnmount(() => {
             Viewport & visibility
           </div>
           <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
-            Limit AIRI to a sub-area of the target window and choose whether it stays visible when the window loses focus.
+            Limit AIRI to a sub-area of the target window and choose whether it hides when another window covers the target.
           </div>
 
           <div :class="['relative', 'mt-3', 'h-36', 'rounded-xl', 'border', 'border-dashed', 'border-neutral-300/70', 'bg-white/40', 'dark:border-neutral-800', 'dark:bg-neutral-950/20']">
@@ -585,9 +577,9 @@ onBeforeUnmount(() => {
 
           <div :class="['mt-3', 'rounded-lg', 'border', 'border-neutral-200/70', 'bg-white/50', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/30']">
             <FieldCheckbox
-              v-model="showWhenNotFrontmost"
-              label="Show when target is not frontmost"
-              description="Keeps AIRI visible even if other windows are on top. Still hides if the target is minimized, off-screen, or fullscreen."
+              v-model="hideWhenNotFrontmost"
+              label="Hide when the target is not frontmost"
+              description="A hidden, minimized, or fullscreen target always hides AIRI, whatever this option is."
             />
           </div>
         </div>

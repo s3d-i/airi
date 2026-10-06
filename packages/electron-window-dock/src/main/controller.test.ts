@@ -336,11 +336,11 @@ describe('dockController', () => {
       expect(controller.getDebugState().windowsAbove).toBe(1)
     })
 
-    it('keeps the overlay visible on a covered target when showWhenNotFrontmost is set', async () => {
+    it('keeps the overlay visible on a covered target when hideWhenNotFrontmost is false', async () => {
       const { controller, windows, above, overlays } = setup()
       windows.set('target', createWindowMeta('target'))
       above.set('target', [createWindowMeta('cover', { bounds: { x: 0, y: 0, width: 800, height: 600 } })])
-      controller.updateConfig({ showWhenNotFrontmost: true })
+      controller.updateConfig({ hideWhenNotFrontmost: false })
 
       await startAndTick(controller, 'target')
 
@@ -385,6 +385,23 @@ describe('dockController', () => {
 
       expect(overlays[0].hide).toHaveBeenCalled()
       expect(controller.getDebugState().lastReason).toBe('target-fullscreen')
+    })
+
+    it('hides the overlay on a fullscreen or minimized target when hideWhenNotFrontmost is false', async () => {
+      const { controller, windows, overlays } = setup()
+      windows.set('target', createWindowMeta('target', { isFullscreen: true }))
+      controller.updateConfig({ hideWhenNotFrontmost: false })
+
+      await startAndTick(controller, 'target')
+
+      expect(overlays[0].showInactive).not.toHaveBeenCalled()
+      expect(controller.getDebugState().lastReason).toBe('target-fullscreen')
+
+      windows.set('target', createWindowMeta('target', { isMinimized: true }))
+      await vi.advanceTimersByTimeAsync(1000)
+
+      expect(overlays[0].showInactive).not.toHaveBeenCalled()
+      expect(controller.getDebugState().lastReason).toBe('target-hidden')
     })
 
     it('hides the overlay but continues the session when the target is minimized', async () => {
