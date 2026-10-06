@@ -160,7 +160,7 @@ Such a context cannot send an event that is not a reply. Thus the main process s
 - `pnpm -F @proj-airi/electron-window-dock exec vitest run` runs the package tests.
 - The controller tests use a fake tracker, a fake overlay window, a mocked `electron.screen`, and fake timers.
 - `native/electron-fallback.test.ts` tests the rules of the Electron-only fallback with a mocked `BrowserWindow`.
-- `index.test.ts` connects fake renderers to a fake `ipcMain` through the real Eventa adapters. It tests that the overlay renderer gets `windowDock.configChanged`.
+- `index.test.ts` connects fake renderers to a fake `ipcMain` through the real Eventa adapters. It tests that only the overlay renderer gets `windowDock.configChanged`. It also tests that the overlay context removes its IPC listeners when the overlay window closes.
 - No automated test covers the auto-hide of the overlay renderer. It needs a WebGL canvas with a model.
 - No automated test runs a real tracker or a real overlay window.
 - No automated test covers the Win32 tracker, for example its foreground check. The tracker loads the binding only when `process.platform` is `win32`.

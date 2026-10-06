@@ -99,7 +99,9 @@ describe('setupWindowDock', () => {
     const overlay = createRenderer(2)
     const settings = createRenderer(1)
     const received: Required<DockConfig>[] = []
+    const receivedBySettings: Required<DockConfig>[] = []
     overlay.context.on(windowDock.configChanged, event => received.push(event.body!))
+    settings.context.on(windowDock.configChanged, event => receivedBySettings.push(event.body!))
     const dock = setupWindowDock({ createOverlayWindow: async () => createOverlayWindow(overlay.webContents) })
 
     await defineInvoke(settings.context, windowDock.start)({ targetId: 'electron:1' })
@@ -114,6 +116,8 @@ describe('setupWindowDock', () => {
     await expect(defineInvoke(settings.context, windowDock.setConfig)({ padding: -1 })).rejects.toThrow('padding')
 
     expect(received).toHaveLength(2)
+    // The settings renderer sent each update, but only the overlay window gets the event.
+    expect(receivedBySettings).toEqual([])
 
     dock.dispose()
   })
@@ -132,5 +136,29 @@ describe('setupWindowDock', () => {
     expect(received).toHaveLength(1)
 
     dock.dispose()
+  })
+
+  it('removes the IPC listeners of the overlay context when the overlay window closes', async () => {
+    const overlay = createRenderer(2)
+    const settings = createRenderer(1)
+    // Each Eventa main context adds one `eventa-message` listener to `ipcMain`. A context that stays after
+    // its window closes keeps its listener, so the count shows a leak across sessions.
+    const listenersBefore = ipcMain.listenerCount('eventa-message')
+    const dock = setupWindowDock({ createOverlayWindow: async () => createOverlayWindow(overlay.webContents) })
+    const listenersWithoutSession = ipcMain.listenerCount('eventa-message')
+
+    for (let session = 0; session < 2; session++) {
+      await defineInvoke(settings.context, windowDock.start)({ targetId: 'electron:1' })
+
+      expect(ipcMain.listenerCount('eventa-message')).toBe(listenersWithoutSession + 1)
+
+      await defineInvoke(settings.context, windowDock.stop)()
+
+      expect(ipcMain.listenerCount('eventa-message')).toBe(listenersWithoutSession)
+    }
+
+    dock.dispose()
+
+    expect(ipcMain.listenerCount('eventa-message')).toBe(listenersBefore)
   })
 })
