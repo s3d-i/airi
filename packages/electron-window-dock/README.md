@@ -8,7 +8,8 @@ Dock Mode for the AIRI Electron app. It keeps an AIRI overlay window on a target
 - Moves a transparent overlay window onto the target, or onto a rect inside the target.
 - Hides the overlay when the target is hidden, minimized, fullscreen, or not frontmost.
 - Creates the overlay window on the first start of a session, and destroys it when the session ends.
-- Gives Eventa contracts (`windowDock`) to list the targets, start, stop, read the debug state, and set the config.
+- Sends the config to the overlay renderer. With `hideOnHover`, the renderer hides the character while the cursor is near it.
+- Gives Eventa contracts (`windowDock`) to list the targets, start, stop, read the debug state, and read and set the config.
 
 It moves only the AIRI overlay. It does not move or reparent the windows of other apps.
 
@@ -78,6 +79,7 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 | `windowDock.getDebugState` | None | `DockDebugState` |
 | `windowDock.getConfig` | None | `Required<DockConfig>`, a copy of the running config. |
 | `windowDock.setConfig` | `DockConfig`, any subset of the fields | `DockDebugState`. Rejects an update with a value outside the limits. |
+| `windowDock.configChanged` (event) | `Required<DockConfig>` | None. The main process sends it to the overlay window when it creates the window and after each accepted update. |
 
 The entry also exports `defaultDockConfig` and the types `DockConfig`, `DockViewport`, `DockDebugState`, `DockModeState`, and `WindowTargetSummary`.
 
@@ -94,6 +96,7 @@ The main process validates each update with Valibot. An invalid update throws, a
 | `clickThrough` | `true` | | If `true`, mouse events go through the overlay. |
 | `padding` | `0` | 0 to 500 DIP | The space added on each side of the viewport rect. |
 | `hideWhenNotFrontmost` | `true` | | If `true`, the overlay hides while a window is above the target. A hidden, minimized, or fullscreen target hides the overlay with either value. |
+| `hideOnHover` | `true` | | If `true`, the character hides while the cursor is on it or near it. The overlay renderer applies it, not the controller. |
 | `viewport` | `{ left: 0, right: 1, top: 0, bottom: 1 }` | Each edge 0 to 1, `left < right`, `top < bottom` | A rect inside the target, as fractions of the target size. |
 
 ### Sessions and states

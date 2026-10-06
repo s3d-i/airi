@@ -479,7 +479,7 @@ onBeforeUnmount(() => {
             Viewport & visibility
           </div>
           <div :class="['text-xs', 'text-neutral-500', 'dark:text-neutral-400']">
-            Limit AIRI to a sub-area of the target window and choose whether it hides when another window covers the target.
+            Limit AIRI to a sub-area of the target window, and choose when it hides.
           </div>
 
           <div :class="['relative', 'mt-3', 'h-36', 'rounded-xl', 'border', 'border-dashed', 'border-neutral-300/70', 'bg-white/40', 'dark:border-neutral-800', 'dark:bg-neutral-950/20']">
@@ -551,11 +551,16 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div :class="['mt-3', 'rounded-lg', 'border', 'border-neutral-200/70', 'bg-white/50', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/30']">
+          <div :class="['mt-3', 'flex', 'flex-col', 'gap-4', 'rounded-lg', 'border', 'border-neutral-200/70', 'bg-white/50', 'p-3', 'dark:border-neutral-800', 'dark:bg-neutral-950/30']">
             <FieldCheckbox
               v-model="config.hideWhenNotFrontmost"
               label="Hide when the target is not frontmost"
               description="A hidden, minimized, or fullscreen target always hides AIRI, whatever this option is."
+            />
+            <FieldCheckbox
+              v-model="config.hideOnHover"
+              label="Hide near the cursor"
+              description="AIRI hides while the cursor is on the character or near it, and shows again when the cursor moves away."
             />
           </div>
         </div>

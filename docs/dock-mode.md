@@ -60,6 +60,27 @@ A tracker can give a fullscreen flag. The Electron-only tracker gives it. The Wi
 
 When `clickThrough` is `true`, the overlay calls `setIgnoreMouseEvents(true, { forward: true })`. Mouse events go through the overlay to the windows below it.
 
+These rules show or hide the overlay window. The overlay renderer can also hide the character in a visible window. See [Auto-hide near the cursor](#auto-hide-near-the-cursor).
+
+### Auto-hide near the cursor
+
+The option `hideOnHover` (default `true`) hides the character while the cursor is on it or near it. The character shows again when the cursor moves away. Click-through alone lets clicks reach the target, but the character still covers its content.
+
+Auto-hide reuses the Fade on Hover option of the main stage window (`pages/index.vue` and `utils/fade-on-hover.ts`):
+
+- Cursor position: the main process polls `screen.getCursorScreenPoint()` and sends it to the overlay renderer through `useElectronRelativeMouse`. The overlay is click-through, so it gets no DOM mouse events. The gaze of the character uses the same position.
+- Hit area: the cursor is near the character when a painted pixel of the model is within 25 px of it (`FADE_ON_HOVER_REGION_RADIUS`). Live2D reads its canvas. VRM reads an offscreen render target. A cursor outside the overlay window never counts.
+- Hide: the character goes to opacity 0 with a 250 ms transition. Thus it hides fully, the same as Fade on Hover.
+- Restore: when no painted pixel is within 25 px of the cursor, the character goes back to opacity 1 with the same transition. There is no extra delay. The render loop continues at opacity 0, so the hit test still sees the hidden model.
+
+Differences from Fade on Hover:
+
+- Auto-hide sets no click-through. The dock controller owns the click-through of the overlay (`clickThrough`). With `clickThrough: false`, the hidden character still takes the mouse events.
+- The overlay has no controls, so there are no exceptions for the controls island or the window border.
+- Fade on Hover is off by default and stored in the renderer. `hideOnHover` is on by default and is part of the dock config.
+
+The overlay renderer gets the option from the main process. It reads it with `windowDock.getConfig` when it mounts. The main process also sends `windowDock.configChanged` to the overlay window when it creates the window and after each accepted config update.
+
 ### States
 
 | State | Meaning |
@@ -118,14 +139,17 @@ There is no tracker. The target list is empty, and Dock Mode cannot start a usef
 | `windowDock.getDebugState` | None | `DockDebugState` |
 | `windowDock.getConfig` | None | `Required<DockConfig>`, a copy of the running config |
 | `windowDock.setConfig` | `DockConfig`, any subset | `DockDebugState`, or an error that names each invalid field |
+| `windowDock.configChanged` (event) | `Required<DockConfig>` | None. The main process sends it only to the overlay window. |
 
 The handlers use an Eventa context without a window. Any renderer can call them, and the reply goes to the caller.
+
+Such a context cannot send an event that is not a reply. Thus the main process sends `windowDock.configChanged` through a second context, bound to the overlay window with `onlySameWindow`. This context disposes itself when the overlay window closes.
 
 ### Devtools page
 
 - Lists the targets, with an on-screen filter and an automatic refresh.
 - Starts and stops Dock Mode, and shows the debug state: state, poll interval, reason, windows above, target, and last update.
-- Sets the poll intervals, the padding, click-through, the viewport, and the visibility option.
+- Sets the poll intervals, the padding, click-through, the viewport, `hideWhenNotFrontmost`, and `hideOnHover`.
 - Reads the running config with `windowDock.getConfig` when it opens, so the fields show the running values.
 - Applies an option edit through `windowDock.setConfig` 300 ms after the last change. There is no Apply button.
 - Shows a toast for each result. If the main process rejects the update, the running config does not change, and the toast shows the validation error.
@@ -136,6 +160,8 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 - `pnpm -F @proj-airi/electron-window-dock exec vitest run` runs the package tests.
 - The controller tests use a fake tracker, a fake overlay window, a mocked `electron.screen`, and fake timers.
 - `native/electron-fallback.test.ts` tests the rules of the Electron-only fallback with a mocked `BrowserWindow`.
+- `index.test.ts` connects fake renderers to a fake `ipcMain` through the real Eventa adapters. It tests that the overlay renderer gets `windowDock.configChanged`.
+- No automated test covers the auto-hide of the overlay renderer. It needs a WebGL canvas with a model.
 - No automated test runs a real tracker or a real overlay window.
 - No automated test covers the Win32 tracker, for example its foreground check. The tracker loads the binding only when `process.platform` is `win32`.
 - No automated test covers the overlay window factory in `apps/stage-tamagotchi/src/main/windows/dock-overlay/`.
@@ -152,6 +178,9 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 These changes came after the last manual macOS test. No test ran them in the app yet:
 
 - The Window menu of AIRI does not list the overlay. The last test found "AIRI Dock Overlay" in this menu. The menu of the Dock icon was not tested.
+- The frontmost rules of the Electron-only fallback. Unit tests cover them. The last test found `not-frontmost` with a focused Settings target.
+- Auto-hide near the cursor, with Live2D and with VRM.
+- Option edits that apply without a button, and their toasts.
 
 ### Not verified on Windows
 
@@ -169,7 +198,7 @@ Nobody ran this version on Windows. These parts are not verified on Windows:
 - A native macOS tracker with Core Graphics, and optional Accessibility events.
 - A user setting for Dock Mode outside the devtools page.
 - Automatic reattach after a lost target, and a saved last target.
-- Auto-hide when the cursor enters the overlay. This needs a global cursor hit test.
+- A shared composable for the cursor hit test of Fade on Hover and of auto-hide. Now each page builds the samplers itself.
 - `onlySameWindow` for the Eventa contexts of the other AIRI windows. See [Known limits](#known-limits).
 
 ### References

@@ -67,6 +67,7 @@ const dockConfigUpdateSchema = partial(object({
   clickThrough: boolean(),
   padding: pipe(number(), minValue(0), maxValue(500)),
   hideWhenNotFrontmost: boolean(),
+  hideOnHover: boolean(),
   viewport: pipe(
     object({ left: viewportEdgeSchema, right: viewportEdgeSchema, top: viewportEdgeSchema, bottom: viewportEdgeSchema }),
     check(viewport => viewport.left < viewport.right && viewport.top < viewport.bottom, 'The viewport must have left < right and top < bottom.'),

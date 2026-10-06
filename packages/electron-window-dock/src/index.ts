@@ -1,6 +1,6 @@
 import type { Rectangle } from 'electron'
 
-import { defineInvokeEventa } from '@moeru/eventa'
+import { defineEventa, defineInvokeEventa } from '@moeru/eventa'
 
 /**
  * - `detached`: no session. Dock Mode never started, a caller stopped it, or the overlay window failed or was destroyed.
@@ -46,6 +46,11 @@ export interface DockConfig {
    * A hidden, minimized, or fullscreen target hides the overlay with either value.
    */
   hideWhenNotFrontmost?: boolean
+  /**
+   * If true, the character in the overlay hides while the cursor is on it or near it, and shows again when the
+   * cursor moves away. The overlay renderer applies this option. It gets the value from `windowDock.configChanged`.
+   */
+  hideOnHover?: boolean
   /** Restricts the overlay to a rect inside the target window. */
   viewport?: DockViewport
 }
@@ -58,6 +63,7 @@ export const defaultDockConfig: Required<DockConfig> = {
   clickThrough: true,
   padding: 0,
   hideWhenNotFrontmost: true,
+  hideOnHover: true,
   viewport: {
     left: 0,
     right: 1,
@@ -100,6 +106,11 @@ export const windowDockStop = defineInvokeEventa<DockDebugState, void>('eventa:i
 export const windowDockGetDebugState = defineInvokeEventa<DockDebugState, void>('eventa:invoke:electron:window-dock:get-debug-state')
 export const windowDockGetConfig = defineInvokeEventa<Required<DockConfig>, void>('eventa:invoke:electron:window-dock:get-config')
 export const windowDockSetConfig = defineInvokeEventa<DockDebugState, DockConfig>('eventa:invoke:electron:window-dock:set-config')
+/**
+ * The running config. The main process sends it to the overlay renderer when it creates the overlay window,
+ * and after each config update while the window exists. Other renderers do not get this event.
+ */
+export const windowDockConfigChanged = defineEventa<Required<DockConfig>>('eventa:event:electron:window-dock:config-changed')
 
 export const windowDock = {
   listTargets: windowDockListTargets,
@@ -108,4 +119,5 @@ export const windowDock = {
   getDebugState: windowDockGetDebugState,
   getConfig: windowDockGetConfig,
   setConfig: windowDockSetConfig,
+  configChanged: windowDockConfigChanged,
 }
