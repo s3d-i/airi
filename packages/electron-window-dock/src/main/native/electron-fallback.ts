@@ -4,7 +4,7 @@ import process from 'node:process'
 
 import { app, BrowserWindow } from 'electron'
 
-import { getDisplayBounds } from '../display'
+import { getDisplayBounds, rectsIntersect } from '../display'
 import { ELECTRON_WINDOW_ID_PREFIX, toElectronWindowId } from '../window-ids'
 
 export function collectElectronWindows(): WindowMeta[] {
@@ -13,41 +13,48 @@ export function collectElectronWindows(): WindowMeta[] {
     .map(windowToMeta)
 }
 
+/**
+ * Returns the windows above the target. Electron gives no z-order, so the fallback uses the focus and the
+ * always-on-top state of the AIRI windows. The rules, in order:
+ *
+ * 1. If no AIRI window has focus, the fallback assumes that another app is active. The result is one window
+ *    of display size, `external:frontmost`. This is the only signal of other apps that the fallback has.
+ * 2. If the target has focus, the target is frontmost. The result is empty.
+ * 3. Another AIRI window has focus. The result has each other AIRI window that intersects the target and
+ *    has focus or is visible and always on top. If the target is always on top, only the focused window counts.
+ *
+ * In rule 3, the windows of other apps do not count, because the fallback cannot see them.
+ */
 export function getWindowsAboveElectronTarget(windowId: string, windows: WindowMeta[]): WindowMeta[] {
   const target = windows.find(window => window.id === windowId)
   if (!target) {
     return []
   }
 
-  const candidates: WindowMeta[] = []
   const focused = BrowserWindow.getFocusedWindow()
   if (!focused || focused.isDestroyed()) {
     return [createExternalFrontmostMeta(target)]
   }
 
-  if (focused && !focused.isDestroyed() && toElectronWindowId(focused.id) !== windowId) {
-    candidates.push(windowToMeta(focused))
+  const focusedId = toElectronWindowId(focused.id)
+  if (focusedId === windowId) {
+    return []
   }
 
-  const targetBrowserWindow = resolveBrowserWindow(windowId)
-  const targetAlwaysOnTop = targetBrowserWindow?.isAlwaysOnTop() ?? false
-  if (!targetAlwaysOnTop) {
-    for (const meta of windows) {
-      if (meta.id === windowId) {
-        continue
-      }
-      const candidate = resolveBrowserWindow(meta.id)
-      if (candidate && !candidate.isDestroyed() && candidate.isAlwaysOnTop() && candidate.isVisible()) {
-        candidates.push(meta)
-      }
+  const targetAlwaysOnTop = resolveBrowserWindow(windowId)?.isAlwaysOnTop() ?? false
+  return windows.filter((meta) => {
+    if (meta.id === windowId || !rectsIntersect(meta.bounds, target.bounds)) {
+      return false
     }
-  }
-
-  const deduped = new Map<string, WindowMeta>()
-  for (const meta of candidates) {
-    deduped.set(meta.id, meta)
-  }
-  return Array.from(deduped.values())
+    if (meta.id === focusedId) {
+      return true
+    }
+    if (targetAlwaysOnTop) {
+      return false
+    }
+    const candidate = resolveBrowserWindow(meta.id)
+    return !!candidate && !candidate.isDestroyed() && candidate.isAlwaysOnTop() && candidate.isVisible()
+  })
 }
 
 function windowToMeta(window: BrowserWindow): WindowMeta {

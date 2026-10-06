@@ -89,15 +89,18 @@ When `clickThrough` is `true`, the overlay calls `setIgnoreMouseEvents(true, { f
 - At debug level, the tracker logs the owner PID, the title, and the extended style of each window of another process that the walk reports above the target. It logs again only when the list changes. The app sets the global log level to `Log`, so these logs do not show by default.
 - The first tracker call loads the binding. If the load fails, the tracker logs one warning and uses the Electron-only fallback until the app quits.
 - If a call to the binding fails, the tracker logs a warning and uses the fallback for that call.
-- The fallback does not drop AIRI windows. The focused AIRI window and the visible always-on-top AIRI windows count as windows above the target, and they can hide the overlay.
+- The fallback does not drop AIRI windows. It uses the rules in [macOS](#macos), so an AIRI window that intersects the target can hide the overlay.
 
 The binding is a native build. The `build` script of the binding skips the native build when `cargo --version` fails. Then the app has no binding, and Dock Mode uses the Electron-only fallback. For the build steps, the CI variable `AIRI_REQUIRE_NATIVE_WINDOW_WIN32`, and the packaging rules, see [`packages/native-window-win32/README.md`](../packages/native-window-win32/README.md).
 
 #### macOS
 
 - The tracker uses the Electron-only fallback. It lists `BrowserWindow.getAllWindows()`, that is, only the windows of AIRI.
-- The windows above the target are the focused AIRI window and the visible always-on-top AIRI windows.
-- If no AIRI window has focus, the fallback reports one window of display size above the target. Then the overlay hides when another app has focus.
+- Electron gives no z-order. The fallback finds the windows above the target from the focus and the always-on-top state of the AIRI windows. It applies the first rule that matches:
+  1. If no AIRI window has focus, the fallback reports one window of display size, `external:frontmost`, above the target. Thus the overlay hides when another app has focus. This is the only signal of other apps that the fallback has.
+  2. If the target has focus, the target is frontmost. No window is above it.
+  3. Another AIRI window has focus. Each other AIRI window that intersects the target counts when it has focus, or when it is visible and always on top. If the target is always on top, only the focused window counts.
+- In rule 3, the windows of other apps do not count, because the fallback cannot see them.
 
 A native macOS tracker is not implemented. The plan is Core Graphics polling (`CGWindowListCopyWindowInfo`) and optional Accessibility events for move and resize.
 
@@ -128,6 +131,7 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 
 - `pnpm -F @proj-airi/electron-window-dock exec vitest run` runs the package tests.
 - The controller tests use a fake tracker, a fake overlay window, a mocked `electron.screen`, and fake timers.
+- `native/electron-fallback.test.ts` tests the rules of the Electron-only fallback with a mocked `BrowserWindow`.
 - No automated test runs a real tracker or a real overlay window.
 - No automated test covers the Win32 tracker, for example its foreground check. The tracker loads the binding only when `process.platform` is `win32`.
 - No automated test covers the overlay window factory in `apps/stage-tamagotchi/src/main/windows/dock-overlay/`.

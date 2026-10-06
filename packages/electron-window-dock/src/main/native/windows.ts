@@ -10,18 +10,12 @@ import { createRequire } from 'node:module'
 import { useLogg } from '@guiiai/logg'
 import { screen } from 'electron'
 
+import { rectsIntersect } from '../display'
 import { collectElectronWindows, getWindowsAboveElectronTarget } from './electron-fallback'
 
 const log = useLogg('window-dock:win32').useGlobalConfig()
 
 const require = createRequire(import.meta.url)
-
-function intersectsDisplay(bounds: Rectangle, displayBounds: Rectangle): boolean {
-  const { x, y, width, height } = bounds
-  const dx = Math.max(0, Math.min(x + width, displayBounds.x + displayBounds.width) - Math.max(x, displayBounds.x))
-  const dy = Math.max(0, Math.min(y + height, displayBounds.y + displayBounds.height) - Math.max(y, displayBounds.y))
-  return dx > 0 && dy > 0
-}
 
 type Win32Bindings = typeof import('@proj-airi/native-window-win32')
 
@@ -57,7 +51,7 @@ function toWindowMeta(window?: BindingWindowInfo | null): WindowMeta | undefined
     return undefined
 
   const { bounds, displayBounds } = converted
-  const isOnScreen = window.isVisible && !window.isMinimized && !window.isCloaked && intersectsDisplay(bounds, displayBounds)
+  const isOnScreen = window.isVisible && !window.isMinimized && !window.isCloaked && rectsIntersect(bounds, displayBounds)
 
   return {
     id: window.id,
