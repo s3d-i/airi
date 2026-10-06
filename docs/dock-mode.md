@@ -173,16 +173,23 @@ Such a context cannot send an event that is not a reply. Thus the main process s
 - These contexts are in upstream code. Dock Mode does not change them.
 - A macOS test run of this branch before its last fixes measured three handler runs for one invoke from the devtools page, and four for one invoke from the overlay. Each count had the handlers of the main window, the settings window, and a closed onboarding window. The overlay count also had the handler of the overlay. Each invoke returned the correct result.
 
+### Verified by hand on macOS
+
+A manual test of the packaged app on macOS confirmed these changes:
+
+- A focused Settings target counts as frontmost, and the overlay shows. An earlier test found `not-frontmost` in this case.
+- Auto-hide near the cursor hides the character, and the character comes back when the cursor leaves.
+- Option edits apply without a button, and toasts show the result.
+
 ### Not verified on macOS
 
-These changes came after the last manual macOS test. No test ran them in the app yet:
+No test ran these changes in the app yet:
 
-- The Window menu of AIRI does not list the overlay. The last test found "AIRI Dock Overlay" in this menu. The menu of the Dock icon was not tested.
-- The frontmost rules of the Electron-only fallback. Unit tests cover them. The last test found `not-frontmost` with a focused Settings target.
-- Auto-hide near the cursor, with Live2D and with VRM.
-- Option edits that apply without a button, and their toasts.
-- The option `hideWhenNotFrontmost`. It replaces two options. The last test did not confirm that the overlay stays on a covered target when the option is off.
-- The `@proj-airi/ui` fields of the devtools page, and the running values in the fields when the page opens again.
+- The Window menu of AIRI does not list the overlay. An earlier test found "AIRI Dock Overlay" in this menu. The menu of the Dock icon was not tested.
+- The other frontmost rules of the Electron-only fallback, for example a focused AIRI window over the target. Unit tests cover them.
+- Auto-hide with a VRM model.
+- The overlay stays on a covered target when `hideWhenNotFrontmost` is off.
+- The fields show the running values when the page opens again.
 
 ### Not verified on Windows
 
