@@ -56,6 +56,9 @@ async function createDockOverlayWindow(params: { serverChannel: ServerChannel, i
     window.setVisibleOnAllWorkspaces(true)
     if (isMacOS) {
       window.setWindowButtonVisibility(false)
+      // `skipTaskbar` does not remove a window from the Window menu of the app on macOS.
+      // Without this, the menu lists the visible overlay as "AIRI Dock Overlay".
+      window.excludedFromShownWindowsMenu = true
     }
     protectPrivilegedWindowNavigation(window)
 

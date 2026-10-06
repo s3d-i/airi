@@ -22,7 +22,7 @@ The API reference is in [`packages/electron-window-dock/README.md`](../packages/
 
 The app gives `createOverlayWindow` to `setupWindowDock`. This function does these steps:
 
-1. It creates a hidden, transparent, not focusable window. The window has `skipTaskbar` and shows on all workspaces. On macOS, its type is `panel`, the same as the main window.
+1. It creates a hidden, transparent, not focusable window. The window has `skipTaskbar` and shows on all workspaces. On macOS, its type is `panel`, the same as the main window. It also sets `excludedFromShownWindowsMenu`, so that the Window menu of AIRI does not list the overlay.
 2. It creates an Eventa context with `onlySameWindow: true`, so the base handlers of the overlay hear only the overlay.
 3. It registers the base window handlers. Then it loads `dock-overlay.html#/dock-overlay` with `synced-leader=false`.
 
@@ -142,6 +142,12 @@ The handlers use an Eventa context without a window. Any renderer can call them,
 - Examples in `apps/stage-tamagotchi/src/main` are the main window (`windows/main/rpc/index.electron.ts`), the settings window (`windows/settings/rpc/index.electron.ts`), and the onboarding window (`windows/onboarding/index.ts`). The caption, spotlight, and dashboard windows also do this.
 - These contexts are in upstream code. Dock Mode does not change them.
 - A macOS test run of this branch before its last fixes measured three handler runs for one invoke from the devtools page, and four for one invoke from the overlay. Each count had the handlers of the main window, the settings window, and a closed onboarding window. The overlay count also had the handler of the overlay. Each invoke returned the correct result.
+
+### Not verified on macOS
+
+These changes came after the last manual macOS test. No test ran them in the app yet:
+
+- The Window menu of AIRI does not list the overlay. The last test found "AIRI Dock Overlay" in this menu. The menu of the Dock icon was not tested.
 
 ### Not verified on Windows
 
