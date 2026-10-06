@@ -181,6 +181,8 @@ These changes came after the last manual macOS test. No test ran them in the app
 - The frontmost rules of the Electron-only fallback. Unit tests cover them. The last test found `not-frontmost` with a focused Settings target.
 - Auto-hide near the cursor, with Live2D and with VRM.
 - Option edits that apply without a button, and their toasts.
+- The option `hideWhenNotFrontmost`. It replaces two options. The last test did not confirm that the overlay stays on a covered target when the option is off.
+- The `@proj-airi/ui` fields of the devtools page, and the running values in the fields when the page opens again.
 
 ### Not verified on Windows
 
@@ -192,6 +194,7 @@ Nobody ran this version on Windows. These parts are not verified on Windows:
 - The fullscreen check accepts a difference of 6 DIP.
 - `screen.screenToDipRect` converts the rects of the binding to DIP.
 - Click-through on the overlay window.
+- Auto-hide near the cursor.
 
 ### Open items
 
